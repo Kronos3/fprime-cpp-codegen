@@ -29,7 +29,7 @@ A minimal example::
         with ns.class_("Greeter") as cls:
             with cls.public():
                 fn = cls.function("greet", params=[("const char*", "name")])
-                fn.body.call("printf", '"hello %s\\n"', "name")
+                fn.body.line('printf("hello %s\\n", name);')
 
     print(doc.render_hpp())
     print(doc.render_cpp())

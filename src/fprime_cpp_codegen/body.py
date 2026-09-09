@@ -4,15 +4,26 @@ A :class:`Body` accumulates lines.  Statements append to it; control-flow scopes
 are context managers that indent everything written inside them::
 
     body = Body()
-    body.var("U32", "total", "0")
+    body.line("U32 total = 0;")
     with body.for_("U32 i = 0", "i < n", "i++"):
         body.line("total += m_data[i];")
-    body.ret("total")
+    body.line("return total;")
 
 A ``Body`` is a plain value, so a helper function can build one and return it, and
 a caller can splice it in with :meth:`Body.extend`.  That matters: most generated
 C++ comes out of mapping over a model, and fragments need to be things you can
 put in a variable.
+
+This class deals in *structure* -- scopes, nesting, control flow -- and leaves
+individual statements to :meth:`Body.line`.  There is deliberately no
+``assign()`` or ``ret()``: ``b.line("x = y;")`` is shorter than ``b.assign("x",
+"y")`` and shows you the C++ you are going to get, with nothing to remember about
+which helper supplies the semicolon.  Where a statement needs real formatting --
+a call broken one argument per line, a sum with a hanging indent --
+:mod:`fprime_cpp_codegen.utils` has a function returning lines, and
+:meth:`Body.raw` takes it::
+
+    b.raw(utils.write_function_call("log_FOO", ["id"], fields))
 
 Scopes emit even when their body turns out empty.  A vanishing ``if`` would
 silently re-point the ``else`` that follows it, which is a bug that reads as
@@ -32,11 +43,10 @@ from .comments import (
     write_doxygen_comment,
 )
 from .errors import ScopeError, ValidationError
-from .lines import Line, add_prefix_indent, blank, indent_lines
+from .lines import Line, blank, indent_lines
 from .lines import line as _line
 from .lines import lines as _lines
 from .lines import render as _render
-from .utils import write_function_call, write_sum
 
 __all__ = ["Body", "Code", "Switch", "stmts"]
 
@@ -65,6 +75,34 @@ def stmts(*code: Code) -> list[Line]:
     return out
 
 
+#: Statements after which control does not fall through.  ``goto`` is included for
+#: completeness even though F Prime's coding standard forbids it.
+_TERMINATING_KEYWORDS = ("return", "throw", "goto")
+
+
+def _terminates(ll: Sequence[Line]) -> bool:
+    """Whether ``ll`` ends in a statement that unconditionally transfers control.
+
+    Read off the emitted text rather than tracked as state, so it works the same
+    whether a statement arrived through :meth:`Body.line`, :meth:`Body.raw`, or a
+    helper from :mod:`fprime_cpp_codegen.utils`.
+
+    Deliberately conservative.  A miss costs an unreachable ``break;``, which is
+    untidy but harmless; wrongly claiming termination would drop a ``break`` and
+    silently turn a switch arm into a fallthrough, so the test only matches shapes
+    that cannot be anything else.  ``return`` and ``throw`` are keywords, so a
+    following space or semicolon is unambiguous.
+    """
+    if not ll:
+        return False
+    last = ll[-1].string.strip()
+    if last in ("break;", "continue;"):
+        return True
+    return any(
+        last == f"{kw};" or last.startswith(f"{kw} ") for kw in _TERMINATING_KEYWORDS
+    )
+
+
 @dataclass
 class _Frame:
     """One level of the body under construction."""
@@ -74,10 +112,6 @@ class _Frame:
     open_chain: bool = False
     """Whether the last thing written was an ``if``/``else if``, so an ``else``
     may still attach to it."""
-
-    terminated: bool = False
-    """Whether the last thing written at this level unconditionally transfers
-    control, which makes anything after it unreachable."""
 
 
 class Body:
@@ -94,11 +128,12 @@ class Body:
     def terminated(self) -> bool:
         """Whether the last statement written unconditionally transfers control.
 
-        True after a ``return``, ``break``, ``continue`` or ``throw`` at this level
-        -- not after one nested inside an ``if``, which may not be taken.  A switch
-        arm uses this to skip a ``break;`` that would be unreachable.
+        A switch arm reads this to skip a ``break;`` that would be unreachable.  A
+        ``return`` nested inside an ``if`` does not count, and does not need to: the
+        last line at this level is then the ``if``'s closing brace, so the structure
+        distinguishes the two cases on its own.
         """
-        return self._current.terminated
+        return _terminates(self._current.lines)
 
     @property
     def depth(self) -> int:
@@ -142,15 +177,11 @@ class Body:
     def _current(self) -> _Frame:
         return self._frames[-1]
 
-    def _emit(
-        self, ll: Sequence[Line], *, chain: bool = False, terminates: bool = False
-    ) -> Body:
-        """Append lines, recording whether an ``else`` may follow and whether
-        control leaves the body here."""
+    def _emit(self, ll: Sequence[Line], *, chain: bool = False) -> Body:
+        """Append lines and record whether an ``else`` may follow."""
         frame = self._current
         frame.lines.extend(ll)
         frame.open_chain = chain
-        frame.terminated = terminates
         return self
 
     @contextmanager
@@ -240,88 +271,6 @@ class Body:
     def banner(self, text: str) -> Body:
         """Append a ruled banner comment."""
         return self._emit(write_banner_comment(text))
-
-    # ------------------------------------------------------------------
-    # Simple statements
-    # ------------------------------------------------------------------
-
-    def var(
-        self,
-        type_name: str,
-        name: str,
-        init: str | None = None,
-        *,
-        array: str | None = None,
-        comment: str | None = None,
-        static: bool = False,
-        const: bool = False,
-        constexpr: bool = False,
-    ) -> Body:
-        """Declare a local: ``T name = init;``, with the usual decorations."""
-        lead = "".join(
-            word
-            for word, on in (("static ", static), ("constexpr ", constexpr), ("const ", const))
-            if on
-        )
-        declarator = f"{name}[{array}]" if array is not None else name
-        text = f"{lead}{type_name} {declarator}"
-        if init is not None:
-            text += f" = {init}"
-        ll = [*(write_comment_body(comment) if comment is not None else []), _line(f"{text};")]
-        return self._emit(ll)
-
-    def assign(self, target: str, expr: str, *, op: str = "=") -> Body:
-        """Assign: ``target = expr;``.  ``op`` allows ``+=``, ``|=`` and friends."""
-        return self.line(f"{target} {op} {expr};")
-
-    def expr(self, text: str) -> Body:
-        """An expression statement: ``text;``."""
-        return self.line(f"{text};")
-
-    def call(
-        self,
-        name: str,
-        *args: str,
-        variable_args: Sequence[str] = (),
-    ) -> Body:
-        """Call a function.
-
-        ``variable_args`` -- the trailing arguments whose count varies per call
-        site -- forces the call one argument per line, which keeps a long
-        generated argument list readable.
-        """
-        return self._emit(write_function_call(name, list(args), variable_args))
-
-    def sum(
-        self,
-        terms: Sequence[str],
-        *,
-        prefix: str = "",
-        empty: str = "0",
-        separator: str = "+",
-        terminator: str = ";",
-    ) -> Body:
-        """Emit a sum of ``terms``, one per line, optionally after a ``prefix``."""
-        ll = write_sum(terms, empty, separator, terminator)
-        return self._emit(add_prefix_indent(prefix, ll) if prefix else ll)
-
-    def ret(self, expr: str | None = None) -> Body:
-        """Return, with or without a value."""
-        text = f"return {expr};" if expr is not None else "return;"
-        return self._emit([_line(text)], terminates=True)
-
-    def break_(self) -> Body:
-        """``break;``"""
-        return self._emit([_line("break;")], terminates=True)
-
-    def continue_(self) -> Body:
-        """``continue;``"""
-        return self._emit([_line("continue;")], terminates=True)
-
-    def throw(self, expr: str | None = None) -> Body:
-        """``throw expr;``, or a bare ``throw;`` to rethrow."""
-        text = f"throw {expr};" if expr is not None else "throw;"
-        return self._emit([_line(text)], terminates=True)
 
     # ------------------------------------------------------------------
     # Control flow
@@ -508,7 +457,7 @@ class Switch:
         body._frames.pop()
         inner = list(frame.lines)
         # A break after a return is dead code the compiler will warn about.
-        if not fallthrough and not frame.terminated:
+        if not fallthrough and not _terminates(frame.lines):
             inner.append(_line("break;"))
         closing = _lines("}") if braces else []
         body._emit([*_lines(opening), *indent_lines(inner), *closing])

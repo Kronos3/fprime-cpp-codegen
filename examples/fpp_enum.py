@@ -79,7 +79,9 @@ class EnumModel:
     def is_contiguous(self) -> bool:
         """Whether the values form one unbroken run, so validity is a range test."""
         values = sorted(c.value for c in self.constants)
-        return bool(values) and values == list(range(values[0], values[0] + len(values)))
+        return bool(values) and values == list(
+            range(values[0], values[0] + len(values))
+        )
 
 
 def generate(model: EnumModel) -> CppDocBuilder:
@@ -171,8 +173,8 @@ def constructors(cls: ClassBuilder, model: EnumModel) -> None:
         copy.param(f"const {model.name}&", "obj", comment="The source object")
         copy.body.line("this->e = obj.e;")
         with copy.body.if_directive(fprime.BUILD_UT, spaced=False):
-            copy.body.assign("this->m_serializeValueIsSet", "obj.m_serializeValueIsSet")
-            copy.body.assign("this->m_serializeValue", "obj.m_serializeValue")
+            copy.body.line("this->m_serializeValueIsSet = obj.m_serializeValueIsSet;")
+            copy.body.line("this->m_serializeValue = obj.m_serializeValue;")
 
 
 def operators(cls: ClassBuilder, model: EnumModel) -> None:
@@ -186,11 +188,11 @@ def operators(cls: ClassBuilder, model: EnumModel) -> None:
         assign_obj.param(f"const {name}&", "obj", comment="The source object")
         assign_obj.body.line("this->e = obj.e;")
         with assign_obj.body.if_directive(fprime.BUILD_UT, spaced=False):
-            assign_obj.body.assign(
-                "this->m_serializeValueIsSet", "obj.m_serializeValueIsSet"
+            assign_obj.body.line(
+                "this->m_serializeValueIsSet = obj.m_serializeValueIsSet;"
             )
-            assign_obj.body.assign("this->m_serializeValue", "obj.m_serializeValue")
-        assign_obj.body.ret("*this")
+            assign_obj.body.line("this->m_serializeValue = obj.m_serializeValue;")
+        assign_obj.body.line("return *this;")
 
         # Upstream's wording is not quite uniform across these two, so carry it
         # verbatim rather than deriving it.
@@ -208,9 +210,9 @@ def operators(cls: ClassBuilder, model: EnumModel) -> None:
             fn.param(param_type, "e1", comment=param_comment)
             fn.body.add(assert_valid("e1"), f"this->e = {conversion};")
             with fn.body.if_directive(fprime.BUILD_UT, spaced=False):
-                fn.body.assign("this->m_serializeValueIsSet", "false")
-                fn.body.assign("this->m_serializeValue", "0")
-            fn.body.ret("*this")
+                fn.body.line("this->m_serializeValueIsSet = false;")
+                fn.body.line("this->m_serializeValue = 0;")
+            fn.body.line("return *this;")
 
         # A conversion operator names its type instead of returning one, so there
         # is no return type to write.
@@ -243,12 +245,10 @@ def operators(cls: ClassBuilder, model: EnumModel) -> None:
         cls.member(
             *fprime.write_ostream_operator(
                 name,
-                lines(
-                    """|Fw::String s;
+                lines("""|Fw::String s;
                        |obj.toString(s);
                        |os << s;
-                       |return os;"""
-                ),
+                       |return os;"""),
             )
         )
 
@@ -280,18 +280,16 @@ def member_functions(cls: ClassBuilder, model: EnumModel) -> None:
             params=[buffer_param, mode_param],
         )
         with serialize.body as b:
-            b.var("SerialType", "es", "static_cast<SerialType>(this->e)")
+            b.line("SerialType es = static_cast<SerialType>(this->e);")
             with b.if_directive(fprime.BUILD_UT, spaced=False):
                 b.comment(
                     "Unit testing only: On request, override the enum value\n"
                     "with the numeric value, which is allowed to be invalid"
                 )
                 with b.if_("this->m_serializeValueIsSet"):
-                    b.assign("es", "this->m_serializeValue")
-            b.var(
-                "const Fw::SerializeStatus", "status", "buffer.serializeFrom(es, mode)"
-            )
-            b.ret("status")
+                    b.line("es = this->m_serializeValue;")
+            b.line("const Fw::SerializeStatus status = buffer.serializeFrom(es, mode);")
+            b.line("return status;")
 
         deserialize = cls.function(
             "deserializeFrom",
@@ -300,13 +298,13 @@ def member_functions(cls: ClassBuilder, model: EnumModel) -> None:
             params=[buffer_param, mode_param],
         )
         with deserialize.body as b:
-            b.var("SerialType", "es")
-            b.var("Fw::SerializeStatus", "status", "buffer.deserializeTo(es, mode)")
+            b.line("SerialType es;")
+            b.line("Fw::SerializeStatus status = buffer.deserializeTo(es, mode);")
             with b.if_(f"(status == Fw::FW_SERIALIZE_OK) && !{name}::isValid(es)"):
-                b.assign("status", "Fw::FW_DESERIALIZE_FORMAT_ERROR")
+                b.line("status = Fw::FW_DESERIALIZE_FORMAT_ERROR;")
             with b.if_("status == Fw::FW_SERIALIZE_OK"):
-                b.assign("this->e", "static_cast<enum T>(es)")
-            b.ret("status")
+                b.line("this->e = static_cast<enum T>(es);")
+            b.line("return status;")
 
         with cls.if_directive("#if FW_SERIALIZABLE_TO_STRING"):
             to_string = cls.function(
@@ -322,18 +320,15 @@ def member_functions(cls: ClassBuilder, model: EnumModel) -> None:
                 ],
             )
             with to_string.body as b:
-                b.var("Fw::String", "s")
+                b.line("Fw::String s;")
                 with b.switch("e") as sw:
                     for constant in model.constants:
                         with sw.case(constant.name, braces=False):
-                            b.assign("s", f'"{constant.name}"')
+                            b.line(f's = "{constant.name}";')
                     with sw.default(braces=False):
-                        b.assign("s", '"[invalid]"')
-                b.call(
-                    "sb.format",
-                    f'"%s (%" {model.format_specifier} ")"',
-                    "s.toChar()",
-                    "e",
+                        b.line('s = "[invalid]";')
+                b.line(
+                    f'sb.format("%s (%" {model.format_specifier} ")", s.toChar(), e);'
                 )
 
         with cls.if_directive(fprime.BUILD_UT):
@@ -342,8 +337,8 @@ def member_functions(cls: ClassBuilder, model: EnumModel) -> None:
                 comment="Set the value to use for serialization (unit testing only)",
                 params=[("SerialType", "serializeValue", "The serialize value")],
             )
-            setter.body.assign("this->m_serializeValue", "serializeValue")
-            setter.body.assign("this->m_serializeValueIsSet", "true")
+            setter.body.line("this->m_serializeValue = serializeValue;")
+            setter.body.line("this->m_serializeValueIsSet = true;")
 
 
 def static_functions(cls: ClassBuilder, model: EnumModel) -> None:

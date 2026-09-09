@@ -21,40 +21,15 @@ class TestSimpleStatements:
         b.raw([line("d();")])
         assert text(b) == "a();\nb();\nc();\nd();\n"
 
-    def test_var_and_assign(self) -> None:
-        b = Body()
-        b.var("U32", "x")
-        b.var("U32", "y", "0")
-        b.assign("y", "x + 1")
-        assert text(b) == "U32 x;\nU32 y = 0;\ny = x + 1;\n"
+    def test_line_formatting_helpers_come_from_utils(self) -> None:
+        # Body handles structure; formatting a call or a sum belongs to utils, and
+        # arrives through raw().
+        from fprime_cpp_codegen import utils
 
-    def test_return_with_and_without_a_value(self) -> None:
         b = Body()
-        b.ret()
-        b.ret("0")
-        assert text(b) == "return;\nreturn 0;\n"
-
-    def test_break_and_continue(self) -> None:
-        b = Body()
-        b.break_()
-        b.continue_()
-        assert text(b) == "break;\ncontinue;\n"
-
-    def test_call(self) -> None:
-        b = Body()
-        b.call("f")
-        b.call("g", "a", "b")
-        assert text(b) == "f();\ng(a, b);\n"
-
-    def test_call_with_variable_args_is_exploded(self) -> None:
-        b = Body()
-        b.call("log", "id", variable_args=["a", "b"])
-        assert text(b) == "log(\n  id,\n  a,\n  b\n);\n"
-
-    def test_sum_with_a_prefix_hangs_under_it(self) -> None:
-        b = Body()
-        b.sum(["a", "b"], prefix="return ")
-        assert text(b) == "return a +\n       b;\n"
+        b.raw(utils.write_function_call("log", ["id"], ["a", "b"]))
+        b.raw(utils.write_sum(["x", "y"], prefix="return "))
+        assert text(b) == "log(\n  id,\n  a,\n  b\n);\nreturn x +\n       y;\n"
 
     def test_blank_and_comments(self) -> None:
         b = Body()
@@ -65,7 +40,7 @@ class TestSimpleStatements:
 
     def test_chaining(self) -> None:
         b = Body()
-        b.line("a();").line("b();").ret("0")
+        b.line("a();").line("b();").line("return 0;")
         assert text(b) == "a();\nb();\nreturn 0;\n"
 
 
@@ -73,7 +48,7 @@ class TestControlFlow:
     def test_if(self) -> None:
         b = Body()
         with b.if_("x > 0"):
-            b.ret("x")
+            b.line("return x;")
         assert text(b) == "if (x > 0) {\n  return x;\n}\n"
 
     def test_if_elif_else_chain(self) -> None:
@@ -149,14 +124,14 @@ class TestControlFlow:
     def test_block(self) -> None:
         b = Body()
         with b.block():
-            b.var("U32", "tmp", "0")
+            b.line("U32 tmp = 0;")
         assert text(b) == "{\n  U32 tmp = 0;\n}\n"
 
     def test_nesting(self) -> None:
         b = Body()
         with b.for_("U32 i = 0", "i < n", "i++"):
             with b.if_("m_data[i] == 0"):
-                b.continue_()
+                b.line("continue;")
             b.line("total += m_data[i];")
         assert text(b) == (
             "for (U32 i = 0; i < n; i++) {\n"
@@ -218,7 +193,7 @@ class TestSwitch:
         b = Body()
         with b.switch("k") as sw:
             with sw.case("A", "B", "C"):
-                b.ret("1")
+                b.line("return 1;")
         out = text(b)
         assert "case A:\n" in out and "case B:\n" in out and "case C: {" in out
 
@@ -257,13 +232,13 @@ class TestFragments:
         def guard(name: str) -> Body:
             frag = Body()
             with frag.if_(f"{name} == nullptr"):
-                frag.ret("Status::INVALID")
+                frag.line("return Status::INVALID;")
             return frag
 
         b = Body()
         b.extend(guard("p"))
         b.extend(guard("q"))
-        b.ret("Status::OK")
+        b.line("return Status::OK;")
         assert text(b).count("== nullptr") == 2
 
     def test_extend_accepts_plain_lines(self) -> None:
@@ -349,44 +324,69 @@ class TestCodeCoercion:
 
     def test_add_takes_several_shapes_at_once(self) -> None:
         frag = Body()
-        frag.ret("0")
+        frag.line("return 0;")
         b = Body()
         b.add(None, "a();", [frag])
         assert text(b) == "a();\nreturn 0;\n"
 
 
 class TestTermination:
-    def test_terminating_statements_are_tracked(self) -> None:
-        for method, arg in (("ret", None), ("break_", None), ("continue_", None), ("throw", None)):
-            b = Body()
-            getattr(b, method)() if arg is None else getattr(b, method)(arg)
-            assert b.terminated, method
+    """A switch arm must not get a ``break;`` it can never reach.
+
+    Termination is read off the emitted text, so it works whichever way the
+    statement arrived.
+    """
+
+    @pytest.mark.parametrize(
+        "statement",
+        ["return;", "return 0;", "break;", "continue;", "throw;", "throw Bad();"],
+    )
+    def test_terminating_statements_are_recognised(self, statement: str) -> None:
+        b = Body()
+        b.line(statement)
+        assert b.terminated
+
+    @pytest.mark.parametrize(
+        "statement", ["f();", "return_value = 1;", "throwaway = 2;", "// return 0;"]
+    )
+    def test_lookalikes_are_not_mistaken_for_terminators(self, statement: str) -> None:
+        # Getting this wrong the other way would drop a break and silently turn an
+        # arm into a fallthrough, so the test only matches unambiguous shapes.
+        b = Body()
+        b.line(statement)
+        assert not b.terminated
+
+    def test_termination_is_seen_through_raw_lines_too(self) -> None:
+        b = Body()
+        b.raw([line("return 0;")])
+        assert b.terminated
 
     def test_an_ordinary_statement_clears_termination(self) -> None:
         b = Body()
-        b.ret("0")
+        b.line("return 0;")
         b.line("unreachable();")
         assert not b.terminated
 
     def test_a_nested_return_does_not_terminate_the_outer_level(self) -> None:
-        # The if may not be taken, so what follows is still reachable.
+        # The last line at this level is the if's closing brace, so the structure
+        # distinguishes the two cases without any tracking.
         b = Body()
         with b.if_("x"):
-            b.ret("0")
+            b.line("return 0;")
         assert not b.terminated
 
     def test_no_unreachable_break_after_a_return(self) -> None:
         b = Body()
         with b.switch("k") as sw:
             with sw.case("A"):
-                b.ret("1")
+                b.line("return 1;")
         assert "break;" not in text(b)
 
     def test_a_break_is_still_emitted_when_the_arm_falls_through(self) -> None:
         b = Body()
         with b.switch("k") as sw:
             with sw.case("A"):
-                b.call("handle")
+                b.line("handle();")
         assert "break;" in text(b)
 
     def test_a_conditional_return_still_gets_its_break(self) -> None:
@@ -394,7 +394,7 @@ class TestTermination:
         with b.switch("k") as sw:
             with sw.case("A"):
                 with b.if_("x"):
-                    b.ret("1")
+                    b.line("return 1;")
         assert "break;" in text(b)
 
     def test_depth_reports_open_scopes(self) -> None:
@@ -431,32 +431,3 @@ class TestBranch:
             b.line("g();")
         assert text(b).count("if (") == 2
         assert "else if" not in text(b)
-
-
-class TestMoreStatements:
-    def test_expr(self) -> None:
-        b = Body()
-        b.expr("m_count++")
-        assert text(b) == "m_count++;\n"
-
-    def test_compound_assignment(self) -> None:
-        b = Body()
-        b.assign("total", "x", op="+=")
-        assert text(b) == "total += x;\n"
-
-    def test_throw(self) -> None:
-        b = Body()
-        b.throw("std::runtime_error(\"bad\")")
-        b2 = Body()
-        b2.throw()
-        assert text(b) == 'throw std::runtime_error("bad");\n'
-        assert text(b2) == "throw;\n"
-
-    def test_var_decorations(self) -> None:
-        b = Body()
-        b.var("U32", "n", "0", static=True, constexpr=True)
-        b.var("bool", "flags", array="SIZE")
-        b.var("U32", "k", "3", comment="why")
-        assert text(b) == (
-            "static constexpr U32 n = 0;\nbool flags[SIZE];\n// why\nU32 k = 3;\n"
-        )

@@ -49,10 +49,10 @@ def build() -> CppDocBuilder:
                 push.param("U32", "item", comment="The item to append")
                 with push.body as b:
                     with b.if_("m_size == m_capacity"):
-                        b.ret("Status::FULL")
-                    b.assign("m_data[(m_head + m_size) % CAPACITY]", "item")
+                        b.line("return Status::FULL;")
+                    b.line("m_data[(m_head + m_size) % CAPACITY] = item;")
                     b.line("m_size++;")
-                    b.ret("Status::OK")
+                    b.line("return Status::OK;")
 
                 cls.function(
                     "size",
@@ -67,10 +67,10 @@ def build() -> CppDocBuilder:
                     "total", ret="U32", const=True, comment="The sum of every item"
                 )
                 with total.body as b:
-                    b.var("U32", "sum", "0")
+                    b.line("U32 sum = 0;")
                     with b.for_("U32 i = 0", "i < m_size", "i++"):
                         b.line("sum += m_data[(m_head + i) % CAPACITY];")
-                    b.ret("sum")
+                    b.line("return sum;")
 
             with cls.private("Member variables"):
                 cls.var(

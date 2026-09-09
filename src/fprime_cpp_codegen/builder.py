@@ -13,7 +13,7 @@ Nesting in the generated C++ follows nesting in the Python::
             with cls.public("Public member functions"):
                 with cls.function("bump", ret="U32") as fn:
                     fn.body.line("m_count++;")
-                    fn.body.ret("m_count")
+                    fn.body.line("return m_count;")
             with cls.private("Member variables"):
                 cls.var("U32", "m_count", comment="How many bumps so far")
 
@@ -25,7 +25,7 @@ keep filling it in afterwards::
 
     fn = cls.function("bump", ret="U32")
     fn.param("U32", "by", default="1")
-    fn.body.ret("m_count += by")
+    fn.body.line("return m_count + by;")
 
 Use ``with`` where you want the visual grouping, and on access sections and
 preprocessor guards, where it also makes an empty section disappear instead of
@@ -37,7 +37,7 @@ generating from a data model pleasant::
 
     def accessor(cls, name, type_name):
         fn = cls.function(f"get{name}", ret=type_name, const=True)
-        fn.body.ret(f"m_{name}")
+        fn.body.line(f"return m_{name};")
 
     for name, type_name in model.fields:
         accessor(cls, name, type_name)

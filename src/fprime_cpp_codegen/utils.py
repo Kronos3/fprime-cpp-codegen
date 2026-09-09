@@ -21,6 +21,7 @@ from .comments import add_param_comment, write_banner_comment, write_comment
 from .doc import ClassMember, Lines, Member, Namespace, Output
 from .lines import (
     Line,
+    add_prefix_indent,
     blank,
     indent_lines,
     line,
@@ -350,18 +351,24 @@ def write_sum(
     empty: str = "0",
     separator: str = "+",
     terminator: str = ";",
+    *,
+    prefix: str = "",
 ) -> list[Line]:
     """Render a sum of ``terms``, one per line, with the operator trailing.
 
     An empty list renders as ``empty``, which keeps the caller from having to
-    special-case a zero-term total.
+    special-case a zero-term total.  ``prefix`` is written before the first term
+    with the rest hanging beneath it, so ``prefix="return "`` gives a readable
+    multi-line return of a long sum.
     """
     if not terms:
-        return lines(f"{empty}{terminator}")
-    return [
-        *(line(f"{t} {separator}") for t in terms[:-1]),
-        line(f"{terms[-1]}{terminator}"),
-    ]
+        body = lines(f"{empty}{terminator}")
+    else:
+        body = [
+            *(line(f"{t} {separator}") for t in terms[:-1]),
+            line(f"{terms[-1]}{terminator}"),
+        ]
+    return add_prefix_indent(prefix, body) if prefix else body
 
 
 def write_enum_constant(

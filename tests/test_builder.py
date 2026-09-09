@@ -631,10 +631,10 @@ def test_a_realistic_document_compiles() -> None:
                 push.param("U32", "item", comment="The item")
                 with push.body as b:
                     with b.if_("m_size == m_capacity"):
-                        b.ret("Status::FULL")
-                    b.assign("m_data[(m_head + m_size) % CAPACITY]", "item")
+                        b.line("return Status::FULL;")
+                    b.line("m_data[(m_head + m_size) % CAPACITY] = item;")
                     b.line("m_size++;")
-                    b.ret("Status::OK")
+                    b.line("return Status::OK;")
 
                 c.function(
                     "size", ret="U32", const=True, inline=True, body="return m_size;"

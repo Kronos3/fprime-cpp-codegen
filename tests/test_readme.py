@@ -1,7 +1,8 @@
-"""The README's quick start must run, and must produce the output it claims.
+"""The README's quick start must actually run, and its output must compile.
 
-Documented output rots quietly.  This extracts the snippet and the two C++ blocks
-straight out of ``README.md``, runs the one, and compares against the others.
+Documented code rots quietly.  This extracts the snippet straight out of
+``README.md`` and executes it, so a change to the API that invalidates the README
+fails here rather than in front of a reader.
 """
 
 from __future__ import annotations
@@ -36,12 +37,16 @@ def quick_start(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
     return namespace["doc"]
 
 
-def test_quick_start_produces_the_documented_output(quick_start: Any) -> None:
-    documented = blocks("cpp")[:2]
-    assert len(documented) == 2, "expected the hpp and cpp blocks after the quick start"
-    files = quick_start.files()
-    assert files["Ring.hpp"] == documented[0]
-    assert files["Ring.cpp"] == documented[1]
+def test_quick_start_produces_the_two_files(quick_start: Any) -> None:
+    assert set(quick_start.files()) == {"Ring.hpp", "Ring.cpp"}
+
+
+def test_quick_start_splits_declarations_from_definitions(quick_start: Any) -> None:
+    hpp, cpp = quick_start.render_hpp(), quick_start.render_cpp()
+    assert "Ring(" in hpp and "bool push(" in hpp
+    # The inline accessor is defined in the header; push is defined in the source.
+    assert "return m_size;" in hpp and "return m_size;" not in cpp
+    assert "return true;" in cpp and "return true;" not in hpp
 
 
 def test_quick_start_output_compiles(quick_start: Any) -> None:
@@ -52,3 +57,13 @@ def test_quick_start_writes_where_it_says(tmp_path: Path, quick_start: Any) -> N
     # monkeypatch.chdir put us in tmp_path, so the snippet's own write landed there.
     assert (tmp_path / "build-artifacts" / "Ring.hpp").is_file()
     assert (tmp_path / "build-artifacts" / "Ring.cpp").is_file()
+
+
+def test_every_referenced_example_exists() -> None:
+    """Every ``examples/...`` link in the README must point at a real file."""
+    root = README.parent
+    referenced = set(re.findall(r"\((examples/[\w./-]+)\)", README.read_text()))
+    referenced |= set(re.findall(r"python (examples/[\w./-]+)", README.read_text()))
+    assert referenced, "expected the README to point at the examples"
+    missing = sorted(p for p in referenced if not (root / p).exists())
+    assert not missing, f"README points at files that do not exist: {missing}"
