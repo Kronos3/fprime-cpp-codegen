@@ -7,8 +7,7 @@ The package is layered, and you can enter at whichever level suits the job:
 * :mod:`~fprime_cpp_codegen.body` -- :class:`Body`, for function bodies.
 * :mod:`~fprime_cpp_codegen.doc` -- the document IR, to build the tree directly.
 * :mod:`~fprime_cpp_codegen.writer` -- the visitors rendering the IR to lines.
-* :mod:`~fprime_cpp_codegen.utils`, :mod:`~fprime_cpp_codegen.comments` -- helpers
-  over ``list[Line]``.
+* :mod:`~fprime_cpp_codegen.comments` -- comment and banner formatting.
 * :mod:`~fprime_cpp_codegen.lines` -- the line model everything is built on.
 * :mod:`~fprime_cpp_codegen.output` -- rendering to text and to disk.
 * :mod:`~fprime_cpp_codegen.formatting` -- optional post-processing through
@@ -47,6 +46,7 @@ from .builder import (
     EnumBuilder,
     FunctionBuilder,
     NamespaceBuilder,
+    Radix,
 )
 from .doc import (
     VOID,
@@ -72,9 +72,17 @@ from .doc import (
 )
 from .errors import CppCodegenError, ScopeError, ValidationError
 from .formatting import ClangFormat, Formatter
-from .lines import INDENT_INCREMENT, IndentMode, Line, blank, line, lines, render
+from .lines import (
+    INDENT_INCREMENT,
+    IndentMode,
+    Line,
+    blank,
+    line,
+    lines,
+    render,
+    wrap_in_scope,
+)
 from .output import WriteResult, collect_cpp_files, doc_files, write_doc
-from .utils import Radix
 from .writer import (
     Context,
     CppWriter,
@@ -95,6 +103,7 @@ __all__ = [
     "line",
     "lines",
     "render",
+    "wrap_in_scope",
     # Document IR
     "VOID",
     "Class",

@@ -10,15 +10,10 @@ Import it explicitly; the core API stays framework-neutral.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from .doc import ClassMember, Lines, Member, Output
-from .lines import Line, lines
-from .utils import (
-    include,
-    wrap_class_members_in_if_directive,
-    wrap_in_scope,
-    wrap_members_in_if_directive,
-)
+from .lines import Line, blank, lines, wrap_in_scope
 
 __all__ = [
     "BUILD_UT",
@@ -45,7 +40,7 @@ BUILD_UT = "#ifdef BUILD_UT"
 
 #: Project headers an autocoded F Prime header normally needs.
 STANDARD_USER_HPP_HEADERS = [
-    include(path)
+    f'#include "{path}"'
     for path in (
         "Fw/FPrimeBasicTypes.hpp",
         "Fw/Types/ExternalString.hpp",
@@ -59,7 +54,7 @@ STANDARD_USER_HPP_HEADERS = [
 STANDARD_SYSTEM_HPP_HEADERS: list[str] = []
 
 #: Project headers an autocoded F Prime source file normally needs.
-STANDARD_USER_CPP_HEADERS = [include("Fw/Types/Assert.hpp")]
+STANDARD_USER_CPP_HEADERS = ['#include "Fw/Types/Assert.hpp"']
 
 #: System headers an autocoded F Prime source file normally needs.
 STANDARD_SYSTEM_CPP_HEADERS: list[str] = []
@@ -92,32 +87,43 @@ def external_string_decl(name: str, size: str) -> list[Line]:
             |Fw::ExternalString {name}({buf}, sizeof {buf});""")
 
 
+def _guard_members(directive: str, members: Sequence[Any], output: Output) -> list[Any]:
+    """Bracket a non-empty run of members with ``directive`` and ``#endif``."""
+    if not members:
+        return []
+    return [
+        Lines(lines(f"\n{directive}"), output),
+        *members,
+        Lines([blank(), *lines("#endif")], output),
+    ]
+
+
 def guard_class_members_for_text_log(
     members: Sequence[ClassMember], output: Output = Output.BOTH
 ) -> list[ClassMember]:
     """Bracket class members with ``#if FW_ENABLE_TEXT_LOGGING``."""
-    return wrap_class_members_in_if_directive(FW_ENABLE_TEXT_LOGGING, members, output)
+    return _guard_members(FW_ENABLE_TEXT_LOGGING, members, output)
 
 
 def guard_members_for_text_log(
     members: Sequence[Member], output: Output = Output.BOTH
 ) -> list[Member]:
     """Bracket document members with ``#if FW_ENABLE_TEXT_LOGGING``."""
-    return wrap_members_in_if_directive(FW_ENABLE_TEXT_LOGGING, members, output)
+    return _guard_members(FW_ENABLE_TEXT_LOGGING, members, output)
 
 
 def guard_class_members_for_unit_test(
     members: Sequence[ClassMember], output: Output = Output.BOTH
 ) -> list[ClassMember]:
     """Bracket class members with ``#ifdef BUILD_UT``."""
-    return wrap_class_members_in_if_directive(BUILD_UT, members, output)
+    return _guard_members(BUILD_UT, members, output)
 
 
 def guard_members_for_unit_test(
     members: Sequence[Member], output: Output = Output.BOTH
 ) -> list[Member]:
     """Bracket document members with ``#ifdef BUILD_UT``."""
-    return wrap_members_in_if_directive(BUILD_UT, members, output)
+    return _guard_members(BUILD_UT, members, output)
 
 
 def write_ostream_operator(name: str, body: Sequence[Line]) -> list[ClassMember]:

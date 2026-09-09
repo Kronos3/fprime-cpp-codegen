@@ -13,11 +13,8 @@ A ``Body`` is a value: build one anywhere, return it from a helper, and splice i
 in with :meth:`Body.extend`.
 
 This class covers structure -- scopes, nesting, control flow.  Individual
-statements go through :meth:`Body.line`.  Statements needing multi-line layout, such
-as a call broken one argument per line, come from
-:mod:`fprime_cpp_codegen.utils` through :meth:`Body.raw`::
-
-    b.raw(utils.write_function_call("log_FOO", ["id"], fields))
+statements go through :meth:`Body.line`.  :meth:`Body.raw` takes lines from
+elsewhere, such as :func:`fprime_cpp_codegen.fprime.write_assert`.
 
 Scopes emit even when their body turns out empty, since a vanishing ``if`` would
 re-point the ``else`` that follows it.  Pass ``omit_if_empty=True`` to let the scope
@@ -224,7 +221,7 @@ class Body:
         return self._emit(_lines(text))
 
     def raw(self, ll: Iterable[Line]) -> Body:
-        """Append already-rendered lines, e.g. from :mod:`fprime_cpp_codegen.utils`."""
+        """Append already-rendered lines."""
         return self._emit(list(ll))
 
     def add(self, *code: Code) -> Body:

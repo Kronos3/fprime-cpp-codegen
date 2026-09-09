@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -9,7 +10,6 @@ from ..doc import CppDoc, FileBanner, HppFile
 from ..errors import ValidationError
 from ..formatting import Formatter
 from ..output import WriteResult, doc_files, write_doc
-from ..utils import include_guard
 from ..writer import render_cpp, render_hpp
 from .base import _DocContext
 from .scopes import _MemberScope
@@ -145,5 +145,11 @@ class CppDocBuilder(_MemberScope[CppDoc]):
 def _default_guard(
     file_base: str, namespaces: Sequence[str], hpp_extension: str
 ) -> str:
-    """Derive an include guard from the file base, namespaces and extension."""
-    return include_guard(file_base, *namespaces, extension=hpp_extension.upper())
+    """Derive an include-guard macro from the file base, namespaces and extension.
+
+    ``_default_guard("MyClass", ["Fw", "Cfg"], "hpp")`` gives ``"Fw_Cfg_MyClass_HPP"``.
+    Namespace arguments may themselves be qualified with ``::`` or ``.``.
+    """
+    parts = [part for ns in namespaces for part in re.split(r"::|\.", ns) if part]
+    ident = re.sub(r"[^A-Za-z0-9_]+", "_", "_".join([*parts, file_base])).strip("_")
+    return f"{ident}_{hpp_extension.upper()}"

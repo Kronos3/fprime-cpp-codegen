@@ -21,14 +21,6 @@ class TestSimpleStatements:
         b.raw([line("d();")])
         assert text(b) == "a();\nb();\nc();\nd();\n"
 
-    def test_line_formatting_helpers_come_from_utils(self) -> None:
-        from fprime_cpp_codegen import utils
-
-        b = Body()
-        b.raw(utils.write_function_call("log", ["id"], ["a", "b"]))
-        b.raw(utils.write_sum(["x", "y"], prefix="return "))
-        assert text(b) == "log(\n  id,\n  a,\n  b\n);\nreturn x +\n       y;\n"
-
     def test_blank_and_comments(self) -> None:
         b = Body()
         b.comment("plain")

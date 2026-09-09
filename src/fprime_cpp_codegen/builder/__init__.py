@@ -56,6 +56,7 @@ from .definitions import (
     DestructorBuilder,
     EnumBuilder,
     FunctionBuilder,
+    Radix,
 )
 from .document import CppDocBuilder
 from .scopes import ClassBuilder, NamespaceBuilder
@@ -70,4 +71,5 @@ __all__ = [
     "EnumBuilder",
     "FunctionBuilder",
     "NamespaceBuilder",
+    "Radix",
 ]

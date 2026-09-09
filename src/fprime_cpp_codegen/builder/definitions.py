@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from enum import Enum
 
 from ..body import Body, Code
 from ..comments import (
@@ -12,11 +13,35 @@ from ..comments import (
 )
 from ..doc import Constructor, Destructor, Function, Lines, Output, Param, Type, as_type
 from ..errors import ValidationError
-from ..lines import Line
+from ..lines import Line, wrap_in_scope
 from ..lines import line as _line
-from ..utils import Radix, wrap_in_enum, wrap_in_enum_class, wrap_in_named_enum
 from .base import _Builder
 from .coercion import _as_body_lines, _as_params, _sv_qualifier
+
+
+class Radix(Enum):
+    """How to spell an integer literal."""
+
+    DECIMAL = "decimal"
+    HEX = "hex"
+
+
+def _wrap_in_enum(
+    body: list[Line],
+    *,
+    name: str | None = None,
+    scoped: bool = False,
+    underlying: str | None = None,
+) -> list[Line]:
+    """Wrap enumerators in an ``enum``, ``enum <name>`` or ``enum class <name>``."""
+    if scoped:
+        suffix = f" : {underlying}" if underlying is not None else ""
+        opening = f"enum class {name}{suffix} {{"
+    elif name is not None:
+        opening = f"enum {name} {{"
+    else:
+        opening = "enum {"
+    return wrap_in_scope(opening, body, "};", keep_empty=True)
 
 
 class FunctionBuilder(_Builder[Function]):
@@ -337,16 +362,12 @@ class EnumBuilder(_Builder[Lines]):
         return [l for entry in entries for l in entry]
 
     def build(self) -> Lines:
-        body = self._body()
-        if self.scoped:
-            assert self.name is not None
-            inner = wrap_in_enum_class(
-                self.name, body, self.underlying, keep_empty=True
-            )
-        elif self.name is not None:
-            inner = wrap_in_named_enum(self.name, body, keep_empty=True)
-        else:
-            inner = wrap_in_enum(body, keep_empty=True)
+        inner = _wrap_in_enum(
+            self._body(),
+            name=self.name,
+            scoped=self.scoped,
+            underlying=self.underlying,
+        )
         return Lines(
             [*write_doxygen_comment_opt(self.comment), *inner],
             self.output,

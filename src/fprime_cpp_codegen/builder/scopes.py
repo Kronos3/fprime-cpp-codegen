@@ -20,11 +20,11 @@ from ..errors import ValidationError
 from ..lines import Line, blank
 from ..lines import line as _line
 from ..lines import lines as _lines
-from ..utils import Radix, include, system_include
 from .base import _Builder, _DocContext, _resolve, _T, _T2
 from .coercion import _extends
 from .decoration import AccessSection, _Guard, _GuardClose, _GuardOpen
 from .definitions import (
+    Radix,
     ConstructorBuilder,
     DestructorBuilder,
     EnumBuilder,
@@ -66,8 +66,7 @@ class _Scope(_Builder[_T], Generic[_T]):
     def member(self, *members: object) -> None:
         """Splice in ready-made IR members or builders, in order.
 
-        Takes output from :mod:`fprime_cpp_codegen.utils` and
-        :mod:`fprime_cpp_codegen.fprime`::
+        Takes output from :mod:`fprime_cpp_codegen.fprime`::
 
             cls.member(*fprime.write_ostream_operator("MyType", body))
         """
@@ -389,7 +388,7 @@ class _MemberScope(_Scope[_T], Generic[_T]):
         if not paths:
             return
         self.raw(
-            [blank(), *(_line(include(p)) for p in paths)],
+            [blank(), *(_line(f'#include "{p}"') for p in paths)],
             output=output,
             cpp_file=cpp_file,
         )
@@ -404,7 +403,7 @@ class _MemberScope(_Scope[_T], Generic[_T]):
         if not paths:
             return
         self.raw(
-            [blank(), *(_line(system_include(p)) for p in paths)],
+            [blank(), *(_line(f"#include <{p}>") for p in paths)],
             output=output,
             cpp_file=cpp_file,
         )

@@ -42,6 +42,7 @@ __all__ = [
     "lines_opt",
     "render",
     "strip_margin",
+    "wrap_in_scope",
 ]
 
 _T = TypeVar("_T")
@@ -295,6 +296,23 @@ def add_separators(sep: str, ll: Sequence[Line]) -> list[Line]:
     """Append ``sep`` to every line except the last.  Useful for comma lists."""
     last = len(ll) - 1
     return [Line(l.string + sep, l.indent) if i < last else l for i, l in enumerate(ll)]
+
+
+def wrap_in_scope(
+    opening: str,
+    body: Sequence[Line],
+    closing: str,
+    *,
+    keep_empty: bool = False,
+) -> list[Line]:
+    """Indent ``body`` one level between an ``opening`` and ``closing`` line.
+
+    An empty body yields nothing unless ``keep_empty`` is set, so a conditional block
+    with no content disappears instead of leaving empty braces.
+    """
+    if not body and not keep_empty:
+        return []
+    return [*lines(opening), *indent_lines(body), *lines(closing)]
 
 
 def render(ll: Iterable[Line]) -> str:
