@@ -6,8 +6,9 @@ vocabulary in :class:`_Scope`, and differ in what a member may be.
 
 from __future__ import annotations
 
+from collections.abc import Generator, Iterable, Sequence
 from contextlib import contextmanager
-from typing import Any, Generic, Iterable, Iterator, Sequence
+from typing import Any, Generic
 
 from ..comments import (
     write_banner_comment,
@@ -217,7 +218,7 @@ class _Scope(_Builder[_T], Generic[_T]):
     @contextmanager
     def if_directive(
         self, directive: str, *, output: Output = Output.BOTH
-    ) -> Iterator[Any]:
+    ) -> Generator[Any]:
         """Bracket the members added inside with a preprocessor guard.
 
         ``directive`` is written verbatim and must include its ``#``.  A guard with no
@@ -242,7 +243,7 @@ class _Scope(_Builder[_T], Generic[_T]):
         self._pending.append(_GuardClose(guard))
 
     @contextmanager
-    def cpp_file(self, base: str | None) -> Iterator[Any]:
+    def cpp_file(self, base: str | None) -> Generator[Any]:
         """Send definitions created inside this block to ``<base>.cpp``.
 
         ``base`` is a file name without extension; ``None`` restores the document

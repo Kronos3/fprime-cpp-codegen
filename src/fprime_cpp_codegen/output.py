@@ -7,9 +7,9 @@ no-op regeneration does not cascade a rebuild downstream.  Pass
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
 
 from .doc import Class, ClassMember, CppDoc, Member, Namespace
 from .formatting import Formatter

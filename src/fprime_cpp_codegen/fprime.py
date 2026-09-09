@@ -9,7 +9,7 @@ Import it explicitly; the core API stays framework-neutral.
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from .doc import ClassMember, Lines, Member, Output
 from .lines import Line, lines

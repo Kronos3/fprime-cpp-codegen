@@ -26,9 +26,10 @@ disappear.
 
 from __future__ import annotations
 
+from collections.abc import Generator, Iterable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
-from typing import Iterable, Iterator, Sequence, TypeAlias, Union
+from typing import TypeAlias
 
 from .comments import (
     write_banner_comment,
@@ -47,7 +48,7 @@ __all__ = ["Body", "Code", "Switch", "stmts"]
 #: Anything usable as a run of C++ statements.  ``None`` contributes nothing, so
 #: ``b.add(frag if condition else None)`` needs no branch.  A ``str`` is
 #: margin-stripped and taken verbatim, with no punctuation added.
-Code: TypeAlias = Union[None, str, "Line", "Body", Sequence["Code"]]
+Code: TypeAlias = "None | str | Line | Body | Sequence[Code]"
 
 
 def stmts(*code: Code) -> list[Line]:
@@ -181,7 +182,7 @@ class Body:
         omit_if_empty: bool = False,
         chain: bool = False,
         indent: bool = True,
-    ) -> Iterator[Body]:
+    ) -> Generator[Body]:
         """Open a nested scope, indenting whatever is written inside it.
 
         If the block raises, the scope is discarded and the body is left as it was
@@ -371,7 +372,9 @@ class Body:
         )
 
     @contextmanager
-    def switch(self, selector: str, *, omit_if_empty: bool = False) -> Iterator[Switch]:
+    def switch(
+        self, selector: str, *, omit_if_empty: bool = False
+    ) -> Generator[Switch]:
         """``switch (selector) { ... }``.  Yields a :class:`Switch` for its cases."""
         frame = _Frame(kind="switch")
         self._frames.append(frame)
@@ -431,7 +434,7 @@ class Switch:
         return self._scoped("default: {" if braces else "default:", fallthrough, braces)
 
     @contextmanager
-    def _scoped(self, opening: str, fallthrough: bool, braces: bool) -> Iterator[Body]:
+    def _scoped(self, opening: str, fallthrough: bool, braces: bool) -> Generator[Body]:
         body = self._body
         frame = _Frame(kind="case")
         body._frames.append(frame)

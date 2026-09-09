@@ -12,8 +12,8 @@ block with no content disappears instead of emitting ``if (x) {\\n}``.  Pass
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from enum import Enum
-from typing import Sequence
 
 from .comments import add_param_comment, write_banner_comment, write_comment
 from .doc import ClassMember, Lines, Member, Namespace, Output

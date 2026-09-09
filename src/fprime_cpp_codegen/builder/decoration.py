@@ -6,7 +6,8 @@ decorates landed -- which is only known once the enclosing scope is built.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from ..comments import write_access_tag, write_banner_comment
 from ..doc import (

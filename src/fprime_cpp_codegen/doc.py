@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol, Union, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from .lines import Line
 
@@ -294,11 +294,11 @@ class Namespace:
 
 
 #: What may appear at document or namespace scope.
-Member = Union[Class, Lines, Function, Namespace, Variable]
+Member = Class | Lines | Function | Namespace | Variable
 
 #: What may appear at class scope.  Namespaces may not; constructors and
 #: destructors may.
-ClassMember = Union[Class, Lines, Function, Constructor, Destructor, Variable]
+ClassMember = Class | Lines | Function | Constructor | Destructor | Variable
 
 
 @runtime_checkable

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from fprime_cpp_codegen import fprime
 from fprime_cpp_codegen.doc import Class, Lines, Output

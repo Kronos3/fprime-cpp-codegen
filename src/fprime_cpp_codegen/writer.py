@@ -16,8 +16,8 @@ are defined in the header and skipped by the source file.  ``= delete`` and
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from typing import Callable, Sequence
 
 from .comments import (
     add_param_comment,

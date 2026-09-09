@@ -10,9 +10,10 @@ Every function here is pure, and none of them know anything about C++.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Iterable, Sequence, TypeVar
+from typing import TypeVar
 
 __all__ = [
     "INDENT_INCREMENT",
