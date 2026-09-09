@@ -37,7 +37,9 @@ __all__ = [
 ]
 
 #: The horizontal rule that delimits a banner comment.
-BANNER_RULE = "// ----------------------------------------------------------------------"
+BANNER_RULE = (
+    "// ----------------------------------------------------------------------"
+)
 
 
 def add_comment_prefix(prefix: str, l: Line) -> Line:

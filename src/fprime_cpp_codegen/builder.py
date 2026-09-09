@@ -146,7 +146,9 @@ def _as_body_lines(body: Code) -> list[Line]:
     return stmts(body)
 
 
-def _as_params(params: Iterable[Param | tuple[str, ...] | Sequence[str]]) -> list[Param]:
+def _as_params(
+    params: Iterable[Param | tuple[str, ...] | Sequence[str]],
+) -> list[Param]:
     """Coerce a parameter spec list into :class:`Param` objects.
 
     A tuple is read as ``(type, name)`` optionally followed by ``comment`` and
@@ -181,7 +183,11 @@ def _sv_qualifier(
     """Collapse the mutually exclusive static/virtual flags into one qualifier."""
     if pure_virtual:
         # virtual is redundant alongside pure_virtual, so it is permitted.
-        conflicts = [n for n, v in (("static", static), ("override", override), ("final", final)) if v]
+        conflicts = [
+            n
+            for n, v in (("static", static), ("override", override), ("final", final))
+            if v
+        ]
         if conflicts:
             raise ValidationError(
                 f"a pure virtual function cannot also be {' or '.join(conflicts)}"
@@ -509,7 +515,9 @@ class EnumBuilder(_Builder[Lines]):
         """
         if self.name is None:
             raise ValidationError("an anonymous enum has no type name")
-        return Type(self.name, f"{self.qualifier}::{self.name}" if self.qualifier else None)
+        return Type(
+            self.name, f"{self.qualifier}::{self.name}" if self.qualifier else None
+        )
 
     def constant(
         self,
@@ -686,7 +694,9 @@ class _Guard:
     def open_members(self) -> list[Lines]:
         if not self.members:
             return []
-        return _per_file_lines(_lines(f"\n{self.directive}"), self.output, self.targets())
+        return _per_file_lines(
+            _lines(f"\n{self.directive}"), self.output, self.targets()
+        )
 
     def close_members(self) -> list[Lines]:
         if not self.members:
@@ -1013,7 +1023,9 @@ class ClassBuilder(_Scope[Class]):
     @property
     def type(self) -> Type:
         """This class as a :class:`Type`, qualified for use in a source file."""
-        return Type(self.name, self.qualified_name if self.qualified_name != self.name else None)
+        return Type(
+            self.name, self.qualified_name if self.qualified_name != self.name else None
+        )
 
     def nested(self, name: str) -> Type:
         """A type declared inside this class, qualified for use in a source file.
@@ -1282,9 +1294,7 @@ class CppDocBuilder(_MemberScope[CppDoc]):
         formatter: Formatter | None = None,
     ) -> dict[str, str]:
         """Render every file this document owns, as a name-to-text mapping."""
-        return doc_files(
-            self.build(), cpp_files, formatter=self._formatter(formatter)
-        )
+        return doc_files(self.build(), cpp_files, formatter=self._formatter(formatter))
 
     def write(
         self,

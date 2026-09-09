@@ -37,7 +37,9 @@ class TestCollectCppFiles:
             description="d",
             hpp_file=HppFile("A.hpp", "A_HPP"),
             cpp_file_name="A.cpp",
-            members=[Class("A", members=[Function("f", body=[line("x();")], cpp_file="A")])],
+            members=[
+                Class("A", members=[Function("f", body=[line("x();")], cpp_file="A")])
+            ],
         )
         assert collect_cpp_files(doc) == []
 

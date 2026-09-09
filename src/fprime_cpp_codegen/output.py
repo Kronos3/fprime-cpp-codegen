@@ -108,7 +108,11 @@ def write_doc(
     unchanged: list[Path] = []
     for name, text in doc_files(doc, cpp_files, formatter=formatter).items():
         path = root / name
-        if skip_unchanged and path.is_file() and path.read_text(encoding=encoding) == text:
+        if (
+            skip_unchanged
+            and path.is_file()
+            and path.read_text(encoding=encoding) == text
+        ):
             unchanged.append(path)
             continue
         path.parent.mkdir(parents=True, exist_ok=True)

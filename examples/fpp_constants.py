@@ -60,11 +60,11 @@ class Scope:
     component or state machine."""
 
 
-def generate(scopes: list[Scope], *, file_base: str = "FppConstantsAc") -> CppDocBuilder:
+def generate(
+    scopes: list[Scope], *, file_base: str = "FppConstantsAc"
+) -> CppDocBuilder:
     """Generate the C++ document for ``scopes``."""
-    doc = CppDocBuilder(
-        file_base, description="FPP constants", tool_name="fpp-to-cpp"
-    )
+    doc = CppDocBuilder(file_base, description="FPP constants", tool_name="fpp-to-cpp")
     doc.include("Fw/Types/BasicTypes.hpp")
     doc.include(f"{file_base}.hpp", output=Output.CPP)
 

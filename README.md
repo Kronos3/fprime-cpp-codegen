@@ -105,7 +105,10 @@ python -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest
 .venv/bin/python -m mypy    # strict
+.venv/bin/python -m black src tests examples
 ```
+
+Formatting is `black` with its default settings, as F Prime uses.
 
 The compile-check tests need a C++ compiler on `PATH` (`g++`, `clang++` or `c++`)
 and skip themselves if there is none.

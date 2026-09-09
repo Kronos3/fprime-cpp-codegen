@@ -51,11 +51,13 @@ def assert_identical_but_for_indent(
     actual = generated.splitlines()
     assert len(actual) == len(expected), "line counts differ"
     differing = [n for n, (a, b) in enumerate(zip(actual, expected), 1) if a != b]
-    assert differing == indent_only_lines, f"unexpected differences on lines {differing}"
+    assert (
+        differing == indent_only_lines
+    ), f"unexpected differences on lines {differing}"
     for n in differing:
-        assert actual[n - 1].strip() == expected[n - 1].strip(), (
-            f"line {n} differs by more than indentation"
-        )
+        assert (
+            actual[n - 1].strip() == expected[n - 1].strip()
+        ), f"line {n} differs by more than indentation"
 
 
 class TestEnumPort:

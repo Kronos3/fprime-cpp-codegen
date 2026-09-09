@@ -89,7 +89,11 @@ class TestStripMargin:
 
 class TestLines:
     def test_leading_newline_yields_leading_blank(self) -> None:
-        assert strings(lines("\n|#ifndef X\n|#define X")) == ["", "#ifndef X", "#define X"]
+        assert strings(lines("\n|#ifndef X\n|#define X")) == [
+            "",
+            "#ifndef X",
+            "#define X",
+        ]
 
     def test_trailing_newline_does_not_yield_trailing_blank(self) -> None:
         # A trailing margin marker is an artifact of formatting the literal, not
@@ -150,13 +154,19 @@ class TestJoin:
 
 class TestAffixes:
     def test_add_prefix_merges_into_first_line(self) -> None:
-        assert strings(add_prefix("void ", [Line("f()"), Line("{")])) == ["void f()", "{"]
+        assert strings(add_prefix("void ", [Line("f()"), Line("{")])) == [
+            "void f()",
+            "{",
+        ]
 
     def test_add_suffix_merges_into_last_line(self) -> None:
         assert strings(add_suffix([Line("f("), Line(")")], ";")) == ["f(", ");"]
 
     def test_add_prefix_indent_hangs_the_rest(self) -> None:
-        assert strings(add_prefix_indent("f(", [Line("a"), Line("b")])) == ["f(a", "  b"]
+        assert strings(add_prefix_indent("f(", [Line("a"), Line("b")])) == [
+            "f(a",
+            "  b",
+        ]
 
     def test_prefix_and_postfix_lines_skip_empty_bodies(self) -> None:
         assert add_prefix_line(blank(), []) == []
@@ -176,7 +186,9 @@ class TestCombinators:
         assert strings(result) == ["", "a", "", "b"]
 
     def test_blank_separated_keeps_separators_for_empty_results(self) -> None:
-        assert strings(blank_separated(lambda s: [Line(s)] if s else [], ["a", "", "b"])) == [
+        assert strings(
+            blank_separated(lambda s: [Line(s)] if s else [], ["a", "", "b"])
+        ) == [
             "a",
             "",
             "",
@@ -206,7 +218,10 @@ class TestCombinators:
         assert add_separators(",", [Line("a", 4), Line("b", 4)])[0] == Line("a,", 4)
 
     def test_indent_lines(self) -> None:
-        assert indent_lines([Line("a"), Line("b", 2)], 4) == [Line("a", 4), Line("b", 6)]
+        assert indent_lines([Line("a"), Line("b", 2)], 4) == [
+            Line("a", 4),
+            Line("b", 6),
+        ]
 
 
 class TestRender:

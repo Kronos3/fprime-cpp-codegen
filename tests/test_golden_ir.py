@@ -103,7 +103,9 @@ def build_doc() -> CppDoc:
                 name="f",
                 comment="This is line 1.\nThis is line 2.",
                 params=[
-                    Param(CONST_DOUBLE, "x", comment="This is parameter x", default="0.0"),
+                    Param(
+                        CONST_DOUBLE, "x", comment="This is parameter x", default="0.0"
+                    ),
                     Param(CONST_INT, "y", comment="This is parameter y", default="0"),
                 ],
             ),

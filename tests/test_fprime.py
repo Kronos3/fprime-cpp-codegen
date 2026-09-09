@@ -24,11 +24,16 @@ class TestStandardHeaders:
 
 class TestAssert:
     def test_bare_assert(self) -> None:
-        assert text(fprime.write_assert("ptr != nullptr")) == "FW_ASSERT(ptr != nullptr);\n"
+        assert (
+            text(fprime.write_assert("ptr != nullptr"))
+            == "FW_ASSERT(ptr != nullptr);\n"
+        )
 
     def test_assert_reports_its_values(self) -> None:
         # The reported values are what makes a flight-side assert diagnosable.
-        assert text(fprime.write_assert("i < n", "i", "n")) == "FW_ASSERT(i < n, i, n);\n"
+        assert (
+            text(fprime.write_assert("i < n", "i", "n")) == "FW_ASSERT(i < n, i, n);\n"
+        )
 
 
 class TestExternalString:
@@ -114,4 +119,7 @@ class TestBuilderInterop:
             cls.member(*fprime.write_ostream_operator("Ev", [line("return os;")]))
         assert "FW_ASSERT(id < MAX, id);" in d.render_cpp()
         assert "friend std::ostream& operator<<(" in d.render_hpp()
-        assert "std::ostream& operator<<(std::ostream& os, const Ev& obj) {" in d.render_cpp()
+        assert (
+            "std::ostream& operator<<(std::ostream& os, const Ev& obj) {"
+            in d.render_cpp()
+        )

@@ -112,12 +112,7 @@ def include_guard(name: str, *namespaces: str, extension: str = "HPP") -> str:
     ``include_guard("MyClass", "Fw", "Cfg")`` gives ``"Fw_Cfg_MyClass_HPP"``.
     Namespace arguments may themselves be qualified with ``::`` or ``.``.
     """
-    parts = [
-        part
-        for ns in namespaces
-        for part in re.split(r"::|\.", ns)
-        if part
-    ]
+    parts = [part for ns in namespaces for part in re.split(r"::|\.", ns) if part]
     ident = identifier_from_qualified_name("_".join([*parts, name]))
     return f"{ident}_{extension}"
 
@@ -202,7 +197,11 @@ def wrap_in_enum_class(
     keep_empty: bool = False,
 ) -> list[Line]:
     """Wrap ``body`` in ``enum class <name> [: <underlying>] { ... };``."""
-    head = f"enum class {name} : {underlying} {{" if underlying else f"enum class {name} {{"
+    head = (
+        f"enum class {name} : {underlying} {{"
+        if underlying
+        else f"enum class {name} {{"
+    )
     return wrap_in_scope(head, body, "};", keep_empty=keep_empty)
 
 
@@ -261,7 +260,9 @@ def wrap_in_do_while(
     condition: str, body: Sequence[Line], *, keep_empty: bool = False
 ) -> list[Line]:
     """Wrap ``body`` in ``do { ... } while (<condition>);``."""
-    return wrap_in_scope("do {", body, f"}} while ({condition});", keep_empty=keep_empty)
+    return wrap_in_scope(
+        "do {", body, f"}} while ({condition});", keep_empty=keep_empty
+    )
 
 
 def wrap_in_for_loop(
@@ -380,7 +381,9 @@ def write_using_alias(name: str, target: str) -> list[Line]:
 
 def write_var_decl(type_name: str, name: str, init: str | None = None) -> list[Line]:
     """Render a variable declaration, with an optional initialiser."""
-    return lines(f"{type_name} {name} = {init};" if init is not None else f"{type_name} {name};")
+    return lines(
+        f"{type_name} {name} = {init};" if init is not None else f"{type_name} {name};"
+    )
 
 
 # ----------------------------------------------------------------------
@@ -454,9 +457,7 @@ def wrap_class_members_in_if_directive(
     ]
 
 
-def wrap_in_namespaces(
-    names: Sequence[str], members: Sequence[Member]
-) -> list[Member]:
+def wrap_in_namespaces(names: Sequence[str], members: Sequence[Member]) -> list[Member]:
     """Nest ``members`` inside a chain of namespaces, outermost first."""
     out = list(members)
     for name in reversed(names):

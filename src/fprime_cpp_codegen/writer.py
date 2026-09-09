@@ -329,7 +329,9 @@ class HppWriter(DocWriter):
 
     def param_lines(self, p: Param, *, comma: bool) -> list[Line]:
         """Render one parameter, with its post-comment hanging beneath it."""
-        return add_param_comment(self.param_string(p) + ("," if comma else ""), p.comment)
+        return add_param_comment(
+            self.param_string(p) + ("," if comma else ""), p.comment
+        )
 
     def write_params(self, prefix: str, params: list[Param]) -> list[Line]:
         """Render a parameter list, breaking one-per-line when there is more than one.
@@ -358,18 +360,14 @@ class HppWriter(DocWriter):
 
     def open_include_guard(self, guard: str) -> list[Line]:
         """Render the opening half of an include guard."""
-        return lines(
-            f"""
+        return lines(f"""
             |#ifndef {guard}
-            |#define {guard}"""
-        )
+            |#define {guard}""")
 
     def close_include_guard(self) -> list[Line]:
         """Render the closing half of an include guard."""
-        return lines(
-            """
-            |#endif"""
-        )
+        return lines("""
+            |#endif""")
 
     # ------------------------------------------------------------------
     # Declaration shaping
@@ -443,9 +441,7 @@ class HppWriter(DocWriter):
                 decl = [*add_suffix(decl, " :"), *initializer_lines(ctor.initializers)]
             tail = [*decl, *write_function_body(ctor.body)]
         else:
-            tail = join_lists(
-                IndentMode.NO_INDENT, decl, "", lines(_terminator(ctor))
-            )
+            tail = join_lists(IndentMode.NO_INDENT, decl, "", lines(_terminator(ctor)))
         return [
             *write_doxygen_comment_opt(ctor.comment),
             *_template_lines(ctor.template),
@@ -497,7 +493,10 @@ class HppWriter(DocWriter):
             tail = [*decl, *write_function_body(fn.body)]
         else:
             tail = join_lists(
-                IndentMode.NO_INDENT, decl, "", lines(_terminator(fn, pure_virtual=pure))
+                IndentMode.NO_INDENT,
+                decl,
+                "",
+                lines(_terminator(fn, pure_virtual=pure)),
             )
         return [
             *write_doxygen_comment_opt(fn.comment),
@@ -612,7 +611,9 @@ class CppWriter(DocWriter):
 
     def defines_here(self, d: Definition, *, pure_virtual: bool = False) -> bool:
         """Whether ``d``'s definition belongs in a source file at all."""
-        return needs_definition(d, pure_virtual=pure_virtual) and not d.defined_in_header
+        return (
+            needs_definition(d, pure_virtual=pure_virtual) and not d.defined_in_header
+        )
 
     # ------------------------------------------------------------------
     # Members

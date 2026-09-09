@@ -364,4 +364,8 @@ class CppDoc:
     @property
     def file_banner(self) -> FileBanner:
         """The document's banner, falling back to :class:`DefaultFileBanner`."""
-        return self.banner if self.banner is not None else DefaultFileBanner(self.tool_name)
+        return (
+            self.banner
+            if self.banner is not None
+            else DefaultFileBanner(self.tool_name)
+        )

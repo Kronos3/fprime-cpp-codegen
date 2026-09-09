@@ -91,7 +91,8 @@ def assert_compiles(
             text=True,
             timeout=60,
         )
-        assert result.returncode == 0, (
-            f"{cxx} {' '.join(flags)} failed:\n{result.stderr}\n\n"
-            + "\n\n".join(f"=== {n} ===\n{t}" for n, t in files.items())
+        assert (
+            result.returncode == 0
+        ), f"{cxx} {' '.join(flags)} failed:\n{result.stderr}\n\n" + "\n\n".join(
+            f"=== {n} ===\n{t}" for n, t in files.items()
         )

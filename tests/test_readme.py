@@ -22,7 +22,9 @@ _FENCE = re.compile(r"^```(\w+)\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 
 def blocks(language: str) -> list[str]:
     """Every fenced code block in the README written in ``language``."""
-    return [body for lang, body in _FENCE.findall(README.read_text()) if lang == language]
+    return [
+        body for lang, body in _FENCE.findall(README.read_text()) if lang == language
+    ]
 
 
 @pytest.fixture

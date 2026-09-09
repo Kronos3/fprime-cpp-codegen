@@ -267,7 +267,9 @@ class Body:
         """A bare braced block, for scoping a local."""
         return self._scope("{", "}", omit_if_empty=omit_if_empty)
 
-    def if_(self, condition: str, *, omit_if_empty: bool = False) -> AbstractContextManager[Body]:
+    def if_(
+        self, condition: str, *, omit_if_empty: bool = False
+    ) -> AbstractContextManager[Body]:
         """``if (condition) { ... }``, which an :meth:`elif_` or :meth:`else_` may follow."""
         return self._scope(
             f"if ({condition}) {{", "}", omit_if_empty=omit_if_empty, chain=True
@@ -294,9 +296,13 @@ class Body:
             with b.else_():
                 b.raw(fprime.write_assert("0"))
         """
-        return self.elif_(condition) if self._current.open_chain else self.if_(condition)
+        return (
+            self.elif_(condition) if self._current.open_chain else self.if_(condition)
+        )
 
-    def while_(self, condition: str, *, omit_if_empty: bool = False) -> AbstractContextManager[Body]:
+    def while_(
+        self, condition: str, *, omit_if_empty: bool = False
+    ) -> AbstractContextManager[Body]:
         """``while (condition) { ... }``"""
         return self._scope(f"while ({condition}) {{", "}", omit_if_empty=omit_if_empty)
 
@@ -358,13 +364,14 @@ class Body:
         """
         gap = "\n" if spaced else ""
         return self._scope(
-            f"{gap}{directive}", f"{gap}#endif", omit_if_empty=omit_if_empty, indent=False
+            f"{gap}{directive}",
+            f"{gap}#endif",
+            omit_if_empty=omit_if_empty,
+            indent=False,
         )
 
     @contextmanager
-    def switch(
-        self, selector: str, *, omit_if_empty: bool = False
-    ) -> Iterator[Switch]:
+    def switch(self, selector: str, *, omit_if_empty: bool = False) -> Iterator[Switch]:
         """``switch (selector) { ... }``.  Yields a :class:`Switch` for its cases."""
         frame = _Frame(kind="switch")
         self._frames.append(frame)
@@ -424,9 +431,7 @@ class Switch:
         return self._scoped("default: {" if braces else "default:", fallthrough, braces)
 
     @contextmanager
-    def _scoped(
-        self, opening: str, fallthrough: bool, braces: bool
-    ) -> Iterator[Body]:
+    def _scoped(self, opening: str, fallthrough: bool, braces: bool) -> Iterator[Body]:
         body = self._body
         frame = _Frame(kind="case")
         body._frames.append(frame)

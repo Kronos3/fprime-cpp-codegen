@@ -230,7 +230,11 @@ class TestNamespaces:
         ns = d.namespace("A", "B", "C")
         ns.class_("K")
         hpp = d.render_hpp()
-        assert hpp.index("namespace A") < hpp.index("namespace B") < hpp.index("namespace C")
+        assert (
+            hpp.index("namespace A")
+            < hpp.index("namespace B")
+            < hpp.index("namespace C")
+        )
         assert hpp.index("namespace C") < hpp.index("class K")
 
     def test_no_names_is_rejected(self) -> None:
@@ -246,7 +250,9 @@ class TestNamespaces:
     def test_class_only_qualifiers_are_rejected_on_a_free_function(self) -> None:
         d = doc()
         for bad in ("const", "virtual", "pure_virtual", "override", "final"):
-            with pytest.raises(ValidationError, match="only means something for a member"):
+            with pytest.raises(
+                ValidationError, match="only means something for a member"
+            ):
                 d.function("f", **{bad: True})
 
 
@@ -336,7 +342,11 @@ class TestVariables:
         d = doc()
         with d.class_("C") as c:
             c.var(
-                "U32", "MAX", init="10", static=True, constexpr=True,
+                "U32",
+                "MAX",
+                init="10",
+                static=True,
+                constexpr=True,
                 out_of_line_definition=True,
             )
         assert "constexpr U32 C::MAX;" in d.render_cpp()
@@ -487,14 +497,18 @@ class TestFunctionQualifiers:
 
 class TestParameterCoercion:
     def test_tuple_forms(self) -> None:
-        fn = doc().class_("C").function(
-            "f",
-            params=[
-                ("U32", "a"),
-                ("U32", "b", "the b"),
-                ("U32", "c", "the c", "0"),
-                Param(Type("U32"), "d"),
-            ],
+        fn = (
+            doc()
+            .class_("C")
+            .function(
+                "f",
+                params=[
+                    ("U32", "a"),
+                    ("U32", "b", "the b"),
+                    ("U32", "c", "the c", "0"),
+                    Param(Type("U32"), "d"),
+                ],
+            )
         )
         params = fn.build().params
         assert [p.name for p in params] == ["a", "b", "c", "d"]
@@ -614,7 +628,9 @@ def test_a_realistic_document_compiles() -> None:
     with d.namespace("Demo") as ns:
         with ns.class_("Ring", comment="A ring buffer of fixed capacity") as c:
             with c.public("Types"):
-                status = c.enum_class("Status", underlying="U32", comment="Result codes")
+                status = c.enum_class(
+                    "Status", underlying="U32", comment="Result codes"
+                )
                 status.constant("OK", 0, comment="Accepted")
                 status.constant("FULL", 1, comment="At capacity")
 

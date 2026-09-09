@@ -156,13 +156,17 @@ class TestDeletedAndDefaulted:
 
     def test_pure_virtual_cannot_be_deleted(self) -> None:
         with pytest.raises(ValidationError, match="cannot also be deleted"):
-            render_hpp(in_class(Function("f", sv=SVQualifier.PURE_VIRTUAL, deleted=True)))
+            render_hpp(
+                in_class(Function("f", sv=SVQualifier.PURE_VIRTUAL, deleted=True))
+            )
 
 
 class TestHeaderOnlyDefinitions:
     def test_inline_body_puts_the_definition_in_the_header(self) -> None:
         doc = in_class(
-            Function("get", ret_type=Type("U32"), inline_body=True, body=[line("return 1;")])
+            Function(
+                "get", ret_type=Type("U32"), inline_body=True, body=[line("return 1;")]
+            )
         )
         hpp = render_hpp(doc)
         assert "U32 get()" in hpp
@@ -177,7 +181,9 @@ class TestHeaderOnlyDefinitions:
 
     def test_constexpr_implies_a_header_definition(self) -> None:
         doc = in_class(
-            Function("n", ret_type=Type("U32"), constexpr=True, body=[line("return 4;")])
+            Function(
+                "n", ret_type=Type("U32"), constexpr=True, body=[line("return 4;")]
+            )
         )
         assert "return 4;" in render_hpp(doc)
         assert "return 4;" not in render_cpp(doc)
@@ -204,7 +210,12 @@ class TestHeaderOnlyDefinitions:
                 members=[
                     Constructor(initializers=["m_v()"]),
                     Destructor(),
-                    Function("get", ret_type=Type("T"), const=True, body=[line("return m_v;")]),
+                    Function(
+                        "get",
+                        ret_type=Type("T"),
+                        const=True,
+                        body=[line("return m_v;")],
+                    ),
                 ],
             )
         )
@@ -416,7 +427,12 @@ def test_a_document_using_every_construct_compiles() -> None:
                             Constructor(
                                 params=[Param(Type("T"), "v")], initializers=["m_v(v)"]
                             ),
-                            Function("get", ret_type=Type("T"), const=True, body=[line("return m_v;")]),
+                            Function(
+                                "get",
+                                ret_type=Type("T"),
+                                const=True,
+                                body=[line("return m_v;")],
+                            ),
                             Lines(write_access_tag("private") + lines("T m_v;")),
                         ],
                     ),

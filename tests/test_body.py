@@ -58,9 +58,7 @@ class TestControlFlow:
         with b.else_():
             b.line("h();")
         assert text(b) == (
-            "if (a) {\n  f();\n}\n"
-            "else if (c) {\n  g();\n}\n"
-            "else {\n  h();\n}\n"
+            "if (a) {\n  f();\n}\n" "else if (c) {\n  g();\n}\n" "else {\n  h();\n}\n"
         )
 
     def test_else_without_an_if_is_rejected(self) -> None:
@@ -98,9 +96,7 @@ class TestControlFlow:
             b.line("f();")
         with b.do_while("go"):
             b.line("g();")
-        assert text(b) == (
-            "while (go) {\n  f();\n}\ndo {\n  g();\n} while (go);\n"
-        )
+        assert text(b) == ("while (go) {\n  f();\n}\ndo {\n  g();\n} while (go);\n")
 
     def test_for_and_ranged_for(self) -> None:
         b = Body()

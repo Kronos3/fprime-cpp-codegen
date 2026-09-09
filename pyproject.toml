@@ -9,7 +9,15 @@ description = "A Python package for generating C++ code for F Prime"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-keywords = ["fprime", "codegen", "c++", "embedded", "nasa", "flight", "software"]
+keywords = [
+    "fprime",
+    "codegen",
+    "c++",
+    "embedded",
+    "nasa",
+    "flight",
+    "software",
+]
 authors = [{ name = "Andrei Tumbar" }]
 
 classifiers = [
@@ -32,12 +40,15 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "mypy>=1.11"]
+dev = ["pytest>=7", "mypy>=1.11", "black>=24"]
 
 [project.urls]
 Homepage = "https://fprime.jpl.nasa.gov"
 Documentation = "https://nasa.github.io/fprime/"
 Repository = "https://github.com/fprime-community/fprime-cpp-codegen"
+
+[tool.black]
+target-version = ["py310"]
 
 [tool.setuptools_scm]
 

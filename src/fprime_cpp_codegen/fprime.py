@@ -88,10 +88,8 @@ def external_string_decl(name: str, size: str) -> list[Line]:
     a view onto it, not an owning string object.
     """
     buf = buffer_name(name)
-    return lines(
-        f"""|char {buf}[Fw::StringBase::BUFFER_SIZE({size})];
-            |Fw::ExternalString {name}({buf}, sizeof {buf});"""
-    )
+    return lines(f"""|char {buf}[Fw::StringBase::BUFFER_SIZE({size})];
+            |Fw::ExternalString {name}({buf}, sizeof {buf});""")
 
 
 def guard_class_members_for_text_log(
@@ -128,16 +126,12 @@ def write_ostream_operator(name: str, body: Sequence[Line]) -> list[ClassMember]
     Returns the header declaration and the source-file definition, both inside a
     ``BUILD_UT`` guard, ready to splice into a class's member list.
     """
-    declaration = Lines(
-        lines(
-            f"""|
+    declaration = Lines(lines(f"""|
                 |//! Ostream operator
                 |friend std::ostream& operator<<(
                 |    std::ostream& os, //!< The ostream
                 |    const {name}& obj //!< The object
-                |);"""
-        )
-    )
+                |);"""))
     definition = Lines(
         wrap_in_scope(
             f"\nstd::ostream& operator<<(std::ostream& os, const {name}& obj) {{",
