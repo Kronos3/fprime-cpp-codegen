@@ -1,0 +1,150 @@
+"""Generate C++ header and source files from Python.
+
+The package is layered, and you can enter at whichever level suits the job:
+
+* :mod:`~fprime_cpp_codegen.builder` -- the builder API, and the recommended
+  starting point.  Start with :class:`CppDocBuilder`.
+* :mod:`~fprime_cpp_codegen.body` -- :class:`Body`, for function bodies.
+* :mod:`~fprime_cpp_codegen.doc` -- the document IR, if you would rather build the
+  tree directly.
+* :mod:`~fprime_cpp_codegen.writer` -- the visitors that render the IR to lines.
+* :mod:`~fprime_cpp_codegen.utils`, :mod:`~fprime_cpp_codegen.comments` -- helpers
+  over ``list[Line]`` for callers already thinking in lines.
+* :mod:`~fprime_cpp_codegen.lines` -- the line model everything is built on.
+* :mod:`~fprime_cpp_codegen.output` -- rendering to text and to disk.
+* :mod:`~fprime_cpp_codegen.fprime` -- F Prime conventions.  Import it explicitly;
+  nothing else in the package depends on it.
+
+Nothing here knows anything about the FPP model.  It is C++ text generation and
+that is all.
+
+A minimal example::
+
+    from fprime_cpp_codegen import CppDocBuilder
+
+    doc = CppDocBuilder("Greeter", description="a greeter", namespaces=["Demo"])
+    doc.include("Fw/FPrimeBasicTypes.hpp")
+
+    with doc.namespace("Demo") as ns:
+        with ns.class_("Greeter") as cls:
+            with cls.public():
+                fn = cls.function("greet", params=[("const char*", "name")])
+                fn.body.call("printf", '"hello %s\\n"', "name")
+
+    print(doc.render_hpp())
+    print(doc.render_cpp())
+"""
+
+from __future__ import annotations
+
+from .body import Body, Code, Switch, stmts
+from .builder import (
+    AccessSection,
+    ClassBuilder,
+    ConstructorBuilder,
+    CppDocBuilder,
+    DestructorBuilder,
+    EnumBuilder,
+    FunctionBuilder,
+    NamespaceBuilder,
+)
+from .doc import (
+    VOID,
+    Class,
+    ClassMember,
+    Constructor,
+    CppDoc,
+    DefaultFileBanner,
+    Definition,
+    Destructor,
+    FileBanner,
+    Function,
+    HppFile,
+    Lines,
+    Member,
+    Namespace,
+    Output,
+    Param,
+    SVQualifier,
+    Type,
+    Variable,
+    as_type,
+)
+from .errors import CppCodegenError, ScopeError, ValidationError
+from .lines import INDENT_INCREMENT, IndentMode, Line, blank, line, lines, render
+from .output import WriteResult, collect_cpp_files, doc_files, write_doc
+from .utils import Radix
+from .writer import (
+    Context,
+    CppWriter,
+    DocWriter,
+    HppWriter,
+    cpp_lines,
+    hpp_lines,
+    render_cpp,
+    render_hpp,
+)
+
+__all__ = [
+    # Line model
+    "INDENT_INCREMENT",
+    "IndentMode",
+    "Line",
+    "blank",
+    "line",
+    "lines",
+    "render",
+    # Document IR
+    "VOID",
+    "Class",
+    "ClassMember",
+    "Constructor",
+    "CppDoc",
+    "DefaultFileBanner",
+    "Definition",
+    "Destructor",
+    "FileBanner",
+    "Function",
+    "HppFile",
+    "Lines",
+    "Member",
+    "Namespace",
+    "Output",
+    "Param",
+    "Radix",
+    "SVQualifier",
+    "Type",
+    "Variable",
+    "as_type",
+    # Builders
+    "AccessSection",
+    "Body",
+    "ClassBuilder",
+    "Code",
+    "ConstructorBuilder",
+    "CppDocBuilder",
+    "DestructorBuilder",
+    "EnumBuilder",
+    "FunctionBuilder",
+    "NamespaceBuilder",
+    "Switch",
+    "stmts",
+    # Writers
+    "Context",
+    "CppWriter",
+    "DocWriter",
+    "HppWriter",
+    "cpp_lines",
+    "hpp_lines",
+    "render_cpp",
+    "render_hpp",
+    # Output
+    "WriteResult",
+    "collect_cpp_files",
+    "doc_files",
+    "write_doc",
+    # Errors
+    "CppCodegenError",
+    "ScopeError",
+    "ValidationError",
+]

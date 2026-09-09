@@ -1,0 +1,514 @@
+"""Building function bodies out of C++ statements.
+
+A :class:`Body` accumulates lines.  Statements append to it; control-flow scopes
+are context managers that indent everything written inside them::
+
+    body = Body()
+    body.var("U32", "total", "0")
+    with body.for_("U32 i = 0", "i < n", "i++"):
+        body.line("total += m_data[i];")
+    body.ret("total")
+
+A ``Body`` is a plain value, so a helper function can build one and return it, and
+a caller can splice it in with :meth:`Body.extend`.  That matters: most generated
+C++ comes out of mapping over a model, and fragments need to be things you can
+put in a variable.
+
+Scopes emit even when their body turns out empty.  A vanishing ``if`` would
+silently re-point the ``else`` that follows it, which is a bug that reads as
+correct.  Pass ``omit_if_empty=True`` where you would rather the scope disappear.
+"""
+
+from __future__ import annotations
+
+from contextlib import AbstractContextManager, contextmanager
+from dataclasses import dataclass, field
+from typing import Iterable, Iterator, Sequence, TypeAlias, Union
+
+from .comments import (
+    write_banner_comment,
+    write_comment,
+    write_comment_body,
+    write_doxygen_comment,
+)
+from .errors import ScopeError, ValidationError
+from .lines import Line, add_prefix_indent, blank, indent_lines
+from .lines import line as _line
+from .lines import lines as _lines
+from .lines import render as _render
+from .utils import write_function_call, write_sum
+
+__all__ = ["Body", "Code", "Switch", "stmts"]
+
+#: Anything usable as a run of C++ statements.  ``None`` contributes nothing, which
+#: is what lets ``b.add(frag if condition else None)`` need no branch at the call
+#: site; a ``str`` is margin-stripped and taken verbatim, with no punctuation added.
+Code: TypeAlias = Union[None, str, "Line", "Body", Sequence["Code"]]
+
+
+def stmts(*code: Code) -> list[Line]:
+    """Coerce statement-shaped values to lines, flattening nested sequences."""
+    out: list[Line] = []
+    for item in code:
+        if item is None:
+            continue
+        if isinstance(item, Body):
+            out.extend(item.build())
+        elif isinstance(item, Line):
+            out.append(item)
+        elif isinstance(item, str):
+            out.extend(_lines(item))
+        elif isinstance(item, Sequence):
+            out.extend(stmts(*item))
+        else:
+            raise ValidationError(f"not usable as C++ statements: {item!r}")
+    return out
+
+
+@dataclass
+class _Frame:
+    """One level of the body under construction."""
+
+    lines: list[Line] = field(default_factory=list)
+    kind: str = "body"
+    open_chain: bool = False
+    """Whether the last thing written was an ``if``/``else if``, so an ``else``
+    may still attach to it."""
+
+    terminated: bool = False
+    """Whether the last thing written at this level unconditionally transfers
+    control, which makes anything after it unreachable."""
+
+
+class Body:
+    """A function body under construction."""
+
+    def __init__(self, initial: Iterable[Line] | None = None) -> None:
+        self._frames: list[_Frame] = [_Frame(list(initial or []))]
+
+    # ------------------------------------------------------------------
+    # Result
+    # ------------------------------------------------------------------
+
+    @property
+    def terminated(self) -> bool:
+        """Whether the last statement written unconditionally transfers control.
+
+        True after a ``return``, ``break``, ``continue`` or ``throw`` at this level
+        -- not after one nested inside an ``if``, which may not be taken.  A switch
+        arm uses this to skip a ``break;`` that would be unreachable.
+        """
+        return self._current.terminated
+
+    @property
+    def depth(self) -> int:
+        """How many scopes are currently open.  Zero at the top level."""
+        return len(self._frames) - 1
+
+    def build(self) -> list[Line]:
+        """Return the accumulated lines.
+
+        Raises if a scope is still open, which means a ``with`` block was skipped
+        or exited by something other than falling off the end.
+        """
+        if len(self._frames) > 1:
+            raise ScopeError(
+                f"{len(self._frames) - 1} body scope(s) are still open; finish every "
+                "'with' block before building"
+            )
+        return list(self._frames[0].lines)
+
+    def __bool__(self) -> bool:
+        return any(f.lines for f in self._frames)
+
+    def __iter__(self) -> Iterator[Line]:
+        return iter(self.build())
+
+    def __str__(self) -> str:
+        return _render(self.build())
+
+    def __enter__(self) -> Body:
+        """Support ``with fn.body as b:`` purely as a way to shorten the name."""
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
+
+    @property
+    def _current(self) -> _Frame:
+        return self._frames[-1]
+
+    def _emit(
+        self, ll: Sequence[Line], *, chain: bool = False, terminates: bool = False
+    ) -> Body:
+        """Append lines, recording whether an ``else`` may follow and whether
+        control leaves the body here."""
+        frame = self._current
+        frame.lines.extend(ll)
+        frame.open_chain = chain
+        frame.terminated = terminates
+        return self
+
+    @contextmanager
+    def _scope(
+        self,
+        opening: str,
+        closing: str,
+        *,
+        kind: str = "body",
+        omit_if_empty: bool = False,
+        chain: bool = False,
+        indent: bool = True,
+    ) -> Iterator[Body]:
+        """Open a nested scope, indenting whatever is written inside it.
+
+        If the block raises, the scope is discarded rather than half-emitted, so
+        the body is left as it was before the ``with``.
+        """
+        frame = _Frame(kind=kind)
+        self._frames.append(frame)
+        try:
+            yield self
+        except BaseException:
+            self._frames.pop()
+            raise
+        self._frames.pop()
+        if not frame.lines and omit_if_empty:
+            return
+        body = indent_lines(frame.lines) if indent else list(frame.lines)
+        self._emit(
+            [*_lines(opening), *body, *_lines(closing)],
+            chain=chain,
+        )
+
+    def _require_chain(self, keyword: str) -> None:
+        if not self._current.open_chain:
+            raise ScopeError(
+                f"{keyword!r} has no 'if' to attach to; it must directly follow an "
+                "if_() or elif_() scope in the same body"
+            )
+
+    # ------------------------------------------------------------------
+    # Raw output
+    # ------------------------------------------------------------------
+
+    def line(self, text: str) -> Body:
+        """Append one line verbatim."""
+        return self._emit([_line(text)])
+
+    def lines(self, text: str) -> Body:
+        """Append a margin-stripped, possibly multi-line block of C++."""
+        return self._emit(_lines(text))
+
+    def raw(self, ll: Iterable[Line]) -> Body:
+        """Append already-rendered lines, e.g. from :mod:`fprime_cpp_codegen.utils`."""
+        return self._emit(list(ll))
+
+    def add(self, *code: Code) -> Body:
+        """Append anything statement-shaped: text, lines, another body, or nested
+        sequences of those.  ``None`` contributes nothing."""
+        return self._emit(stmts(*code))
+
+    def extend(self, other: Code) -> Body:
+        """Splice in another body or block of lines.  Alias of :meth:`add`."""
+        return self.add(other)
+
+    def blank(self) -> Body:
+        """Append a blank line."""
+        return self._emit([blank()])
+
+    # ------------------------------------------------------------------
+    # Comments
+    # ------------------------------------------------------------------
+
+    def comment(self, text: str) -> Body:
+        """Append a ``//`` comment with no leading blank line."""
+        return self._emit(write_comment_body(text))
+
+    def spaced_comment(self, text: str) -> Body:
+        """Append a ``//`` comment preceded by a blank line."""
+        return self._emit(write_comment(text))
+
+    def doc_comment(self, text: str) -> Body:
+        """Append a ``//!`` doxygen comment."""
+        return self._emit(write_doxygen_comment(text))
+
+    def banner(self, text: str) -> Body:
+        """Append a ruled banner comment."""
+        return self._emit(write_banner_comment(text))
+
+    # ------------------------------------------------------------------
+    # Simple statements
+    # ------------------------------------------------------------------
+
+    def var(
+        self,
+        type_name: str,
+        name: str,
+        init: str | None = None,
+        *,
+        array: str | None = None,
+        comment: str | None = None,
+        static: bool = False,
+        const: bool = False,
+        constexpr: bool = False,
+    ) -> Body:
+        """Declare a local: ``T name = init;``, with the usual decorations."""
+        lead = "".join(
+            word
+            for word, on in (("static ", static), ("constexpr ", constexpr), ("const ", const))
+            if on
+        )
+        declarator = f"{name}[{array}]" if array is not None else name
+        text = f"{lead}{type_name} {declarator}"
+        if init is not None:
+            text += f" = {init}"
+        ll = [*(write_comment_body(comment) if comment is not None else []), _line(f"{text};")]
+        return self._emit(ll)
+
+    def assign(self, target: str, expr: str, *, op: str = "=") -> Body:
+        """Assign: ``target = expr;``.  ``op`` allows ``+=``, ``|=`` and friends."""
+        return self.line(f"{target} {op} {expr};")
+
+    def expr(self, text: str) -> Body:
+        """An expression statement: ``text;``."""
+        return self.line(f"{text};")
+
+    def call(
+        self,
+        name: str,
+        *args: str,
+        variable_args: Sequence[str] = (),
+    ) -> Body:
+        """Call a function.
+
+        ``variable_args`` -- the trailing arguments whose count varies per call
+        site -- forces the call one argument per line, which keeps a long
+        generated argument list readable.
+        """
+        return self._emit(write_function_call(name, list(args), variable_args))
+
+    def sum(
+        self,
+        terms: Sequence[str],
+        *,
+        prefix: str = "",
+        empty: str = "0",
+        separator: str = "+",
+        terminator: str = ";",
+    ) -> Body:
+        """Emit a sum of ``terms``, one per line, optionally after a ``prefix``."""
+        ll = write_sum(terms, empty, separator, terminator)
+        return self._emit(add_prefix_indent(prefix, ll) if prefix else ll)
+
+    def ret(self, expr: str | None = None) -> Body:
+        """Return, with or without a value."""
+        text = f"return {expr};" if expr is not None else "return;"
+        return self._emit([_line(text)], terminates=True)
+
+    def break_(self) -> Body:
+        """``break;``"""
+        return self._emit([_line("break;")], terminates=True)
+
+    def continue_(self) -> Body:
+        """``continue;``"""
+        return self._emit([_line("continue;")], terminates=True)
+
+    def throw(self, expr: str | None = None) -> Body:
+        """``throw expr;``, or a bare ``throw;`` to rethrow."""
+        text = f"throw {expr};" if expr is not None else "throw;"
+        return self._emit([_line(text)], terminates=True)
+
+    # ------------------------------------------------------------------
+    # Control flow
+    # ------------------------------------------------------------------
+
+    def block(self, *, omit_if_empty: bool = False) -> AbstractContextManager[Body]:
+        """A bare braced block, for scoping a local."""
+        return self._scope("{", "}", omit_if_empty=omit_if_empty)
+
+    def if_(self, condition: str, *, omit_if_empty: bool = False) -> AbstractContextManager[Body]:
+        """``if (condition) { ... }``, which an :meth:`elif_` or :meth:`else_` may follow."""
+        return self._scope(
+            f"if ({condition}) {{", "}", omit_if_empty=omit_if_empty, chain=True
+        )
+
+    def elif_(self, condition: str) -> AbstractContextManager[Body]:
+        """``else if (condition) { ... }``.  Must follow an ``if`` or another ``else if``."""
+        self._require_chain("elif_")
+        return self._scope(f"else if ({condition}) {{", "}", chain=True)
+
+    def else_(self) -> AbstractContextManager[Body]:
+        """``else { ... }``.  Must follow an ``if`` or an ``else if``."""
+        self._require_chain("else_")
+        return self._scope("else {", "}")
+
+    def branch(self, condition: str) -> AbstractContextManager[Body]:
+        """``if`` the first time, ``else if`` while a chain is still open.
+
+        Lets a chain of arbitrary length come out of a plain loop::
+
+            for condition, code in dispatch:
+                with b.branch(condition):
+                    b.add(code)
+            with b.else_():
+                b.raw(fprime.write_assert("0"))
+        """
+        return self.elif_(condition) if self._current.open_chain else self.if_(condition)
+
+    def while_(self, condition: str, *, omit_if_empty: bool = False) -> AbstractContextManager[Body]:
+        """``while (condition) { ... }``"""
+        return self._scope(f"while ({condition}) {{", "}", omit_if_empty=omit_if_empty)
+
+    def do_while(self, condition: str) -> AbstractContextManager[Body]:
+        """``do { ... } while (condition);``"""
+        return self._scope("do {", f"}} while ({condition});")
+
+    def for_(
+        self,
+        init: str,
+        condition: str,
+        step: str,
+        *,
+        omit_if_empty: bool = False,
+        staggered: bool = False,
+    ) -> AbstractContextManager[Body]:
+        """``for (init; condition; step) { ... }``.
+
+        ``staggered=True`` splits the three clauses across lines, which is worth it
+        when they are long enough that one line would be unreadable.
+        """
+        opening = (
+            f"""|for (
+                |  {init};
+                |  {condition};
+                |  {step}
+                |) {{
+                |"""
+            if staggered
+            else f"for ({init}; {condition}; {step}) {{"
+        )
+        return self._scope(opening, "}", omit_if_empty=omit_if_empty)
+
+    def for_range(
+        self, declaration: str, container: str, *, omit_if_empty: bool = False
+    ) -> AbstractContextManager[Body]:
+        """``for (declaration : container) { ... }``, e.g. ``for_range("auto& e", "m_list")``."""
+        return self._scope(
+            f"for ({declaration} : {container}) {{", "}", omit_if_empty=omit_if_empty
+        )
+
+    def scope(
+        self, opening: str, closing: str, *, omit_if_empty: bool = False
+    ) -> AbstractContextManager[Body]:
+        """An arbitrary scope, for shapes this module does not cover."""
+        return self._scope(opening, closing, omit_if_empty=omit_if_empty)
+
+    def if_directive(
+        self,
+        directive: str,
+        *,
+        omit_if_empty: bool = True,
+        spaced: bool = True,
+    ) -> AbstractContextManager[Body]:
+        """Bracket the block with a preprocessor ``directive`` and ``#endif``.
+
+        ``directive`` is written verbatim and must include its ``#``.  The guarded
+        code is not indented relative to the guard: the directives sit at column
+        zero, and indenting between them only makes the code look misplaced.
+
+        ``spaced=False`` drops the blank lines around the directives, for a short
+        guard in the middle of a run of statements.
+        """
+        gap = "\n" if spaced else ""
+        return self._scope(
+            f"{gap}{directive}", f"{gap}#endif", omit_if_empty=omit_if_empty, indent=False
+        )
+
+    @contextmanager
+    def switch(
+        self, selector: str, *, omit_if_empty: bool = False
+    ) -> Iterator[Switch]:
+        """``switch (selector) { ... }``.  Yields a :class:`Switch` for its cases."""
+        frame = _Frame(kind="switch")
+        self._frames.append(frame)
+        switch = Switch(self, frame)
+        try:
+            yield switch
+        except BaseException:
+            self._frames.pop()
+            raise
+        self._frames.pop()
+        if not frame.lines and omit_if_empty:
+            return
+        self._emit(
+            [
+                *_lines(f"switch ({selector}) {{"),
+                *indent_lines(frame.lines),
+                *_lines("}"),
+            ]
+        )
+
+
+class Switch:
+    """The cases of an open ``switch``.  Obtained from :meth:`Body.switch`."""
+
+    def __init__(self, body: Body, frame: _Frame) -> None:
+        self._body = body
+        self._frame = frame
+
+    def _check_open(self) -> None:
+        if self._body._current is not self._frame:
+            raise ScopeError(
+                "this switch is not the innermost open scope; close any nested "
+                "scope before adding another case"
+            )
+
+    def case(
+        self, *labels: str, fallthrough: bool = False, braces: bool = True
+    ) -> AbstractContextManager[Body]:
+        """One or more ``case`` labels sharing a body.
+
+        A ``break;`` is appended unless ``fallthrough=True`` or the body already
+        ends in a statement that transfers control.  Braces are on by default
+        because a bare label cannot declare a local, and a declaration in one arm
+        would otherwise leak into the next; ``braces=False`` gives the more compact
+        form used by existing F Prime autocode.
+        """
+        self._check_open()
+        if not labels:
+            raise ScopeError("case() needs at least one label")
+        last = f"case {labels[-1]}: {{" if braces else f"case {labels[-1]}:"
+        opening = "\n".join([*(f"case {l}:" for l in labels[:-1]), last])
+        return self._scoped(opening, fallthrough, braces)
+
+    def default(
+        self, *, fallthrough: bool = False, braces: bool = True
+    ) -> AbstractContextManager[Body]:
+        """The ``default`` label.  See :meth:`case` for the arguments."""
+        self._check_open()
+        return self._scoped("default: {" if braces else "default:", fallthrough, braces)
+
+    @contextmanager
+    def _scoped(
+        self, opening: str, fallthrough: bool, braces: bool
+    ) -> Iterator[Body]:
+        body = self._body
+        frame = _Frame(kind="case")
+        body._frames.append(frame)
+        try:
+            yield body
+        except BaseException:
+            body._frames.pop()
+            raise
+        body._frames.pop()
+        inner = list(frame.lines)
+        # A break after a return is dead code the compiler will warn about.
+        if not fallthrough and not frame.terminated:
+            inner.append(_line("break;"))
+        closing = _lines("}") if braces else []
+        body._emit([*_lines(opening), *indent_lines(inner), *closing])

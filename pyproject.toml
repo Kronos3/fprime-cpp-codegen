@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm[toml]>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fprime-cpp-codegen"
+dynamic = ["version"]
+description = "A Python package for generating C++ code for F Prime"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["fprime", "codegen", "c++", "embedded", "nasa", "flight", "software"]
+authors = [{ name = "Andrei Tumbar" }]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Code Generators",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+# No runtime dependencies: this package generates C++ text and nothing else.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "mypy>=1.11"]
+
+[project.urls]
+Homepage = "https://fprime.jpl.nasa.gov"
+Documentation = "https://nasa.github.io/fprime/"
+Repository = "https://github.com/fprime-community/fprime-cpp-codegen"
+
+[tool.setuptools_scm]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fprime_cpp_codegen = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/fprime_cpp_codegen"]
