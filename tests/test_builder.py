@@ -403,8 +403,7 @@ class TestEnums:
         assert "A = 0xff," in d.render_hpp()
 
     def test_an_underlying_type_needs_a_scoped_enum(self) -> None:
-        # The scope methods make this unreachable -- only enum_class() takes an
-        # underlying type -- but EnumBuilder is public, so it guards itself.
+        # Unreachable through the scope methods, but EnumBuilder is public.
         from fprime_cpp_codegen import EnumBuilder
 
         with pytest.raises(ValidationError, match="needs a scoped enum"):
@@ -709,8 +708,7 @@ class TestValidation:
             d.render_hpp()
 
     def test_a_constructor_cannot_be_added_at_namespace_scope(self) -> None:
-        # There is no method for it, which is the real guard; this pins the
-        # writer's message for anyone assembling the IR by hand.
+        # Unreachable through the scope methods; this covers hand-assembled IR.
         from fprime_cpp_codegen import Constructor, CppCodegenError
 
         d = doc()
@@ -740,8 +738,7 @@ class TestDecorationPlacementAcrossFiles:
         assert other.index("Helpers") < other.index("a();")
 
     def test_a_banner_prefers_the_default_file_when_it_has_any_members(self) -> None:
-        # One copy is enough for decoration, and the default file is where a reader
-        # looks first.
+        # One copy suffices for decoration.
         d = doc()
         with d.class_("C") as c:
             with c.public("Helpers"):
@@ -757,9 +754,7 @@ class TestDecorationPlacementAcrossFiles:
             with c.if_directive("#ifdef BUILD_UT"):
                 with d.cpp_file("Other"):
                     c.function("f", body="a();")
-        # No empty guard where nothing landed...
         assert "BUILD_UT" not in d.render_cpp()
-        # ...and the definition is guarded where it did.
         other = d.render_cpp("Other")
         assert other.index("#ifdef BUILD_UT") < other.index("a();")
         assert other.index("a();") < other.index("#endif")
@@ -786,8 +781,7 @@ class TestDecorationPlacementAcrossFiles:
         assert "BUILD_UT" not in d.render_cpp()
 
     def test_a_guard_covers_a_definition_added_after_the_block_closed(self) -> None:
-        # Placement is resolved at build time, so filling in a body later still
-        # gets the guard right.
+        # Placement is resolved at build time.
         d = doc()
         with d.class_("C") as c:
             with c.if_directive("#ifdef BUILD_UT"):

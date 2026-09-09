@@ -139,8 +139,7 @@ class TestScopes:
 
 class TestIfDirective:
     def test_guarded_lines_are_not_indented(self) -> None:
-        # The directive itself must sit at column zero, and indenting the guarded
-        # code relative to it would only make it look misplaced.
+        # The directive must sit at column zero.
         assert text(wrap_in_if_directive("#ifdef BUILD_UT", BODY)) == (
             "\n#ifdef BUILD_UT\ndoIt();\n\n#endif\n"
         )

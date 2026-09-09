@@ -53,8 +53,7 @@ class TestCollectCppFiles:
 
 class TestDocFiles:
     def test_supplemental_source_files_are_discovered_by_default(self) -> None:
-        # Forgetting to name a supplemental file would silently drop every
-        # definition assigned to it, so discovery is the default.
+        # A file left unnamed would lose every definition assigned to it.
         assert set(doc_files(build_doc())) == {"A.hpp", "A.cpp", "Extra.cpp"}
 
     def test_discovery_can_be_suppressed_with_an_explicit_list(self) -> None:

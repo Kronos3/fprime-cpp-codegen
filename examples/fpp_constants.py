@@ -1,8 +1,6 @@
 """Port of FPP's constants autocoder: generate the C++ for a set of FPP constants.
 
-Where ``fpp_enum.py`` builds one large class, this builds a document with no class
-in it at all -- just constants at namespace scope -- which is the other common shape
-an autocoder produces.
+A document with no class in it: constants at namespace scope.
 
 Run it to see the generated pair::
 
@@ -12,18 +10,16 @@ or write them out::
 
     python examples/fpp_constants.py build-artifacts
 
-The interesting part is how a constant is spelled, which depends on its type:
+How a constant is spelled depends on its type:
 
-* An integer constant becomes an anonymous ``enum``.  That keeps it entirely in the
-  header -- an ``enum`` needs no definition in a source file, so nothing has to be
-  linked and the value stays usable in a constant expression.
-* Anything else needs a definition somewhere, so it is declared ``extern`` in the
-  header and defined in the source file.  That is what ``extern=True`` on a
-  variable does: it splits the two halves across the files for you.
+* An integer constant becomes an anonymous ``enum``, which needs no definition in a
+  source file and stays usable in a constant expression.
+* Anything else needs a definition, so it is declared ``extern`` in the header and
+  defined in the source file.
 
-It also shows the two ways FPP scopes a constant: an FPP ``module`` becomes a real
-C++ namespace, while constants inside a component or state machine -- which are not
-namespaces -- get flattened into a prefixed name in the enclosing scope.
+FPP scopes a constant two ways: a ``module`` becomes a C++ namespace, while constants
+inside a component or state machine -- which are not namespaces -- flatten into a
+prefixed name in the enclosing scope.
 """
 
 from __future__ import annotations
@@ -41,7 +37,7 @@ class ConstantDef:
     name: str
     value: str
     type: str | None = None
-    """The C++ type.  ``None`` marks an integer constant, which becomes an enum."""
+    """``None`` marks an integer constant, which becomes an enum."""
 
     comment: str | None = None
 
@@ -60,8 +56,8 @@ class Scope:
     """Emit inside ``namespace <name> { ... }``.  Used for an FPP ``module``."""
 
     prefix: str = ""
-    """Prepend to each name instead of opening a namespace.  Used for constants
-    inside a component or state machine, which are not C++ namespaces."""
+    """Prepend to each name instead of opening a namespace, for constants inside a
+    component or state machine."""
 
 
 def generate(scopes: list[Scope], *, file_base: str = "FppConstantsAc") -> CppDocBuilder:
@@ -77,7 +73,6 @@ def generate(scopes: list[Scope], *, file_base: str = "FppConstantsAc") -> CppDo
         for constant in scope.constants:
             name = f"{scope.prefix}{constant.name}"
             if constant.is_integer:
-                # An enum carries its value in the header and needs no definition.
                 target.enum(comment=constant.comment, trailing_comma=False).constant(
                     name, int(constant.value)
                 )
@@ -120,8 +115,7 @@ EXAMPLE = [
         ],
         namespace="M",
     ),
-    # Constants declared inside component C: flattened, because a component is not
-    # a C++ namespace.
+    # Declared inside component C, which is not a C++ namespace.
     Scope(
         [
             *numbered(),
@@ -131,7 +125,7 @@ EXAMPLE = [
         ],
         prefix="C_",
     ),
-    # Constants declared inside state machine SM, likewise flattened.
+    # Declared inside state machine SM, likewise.
     Scope([ConstantDef("a", "0", comment="Constant a")], prefix="SM_"),
     Scope(
         [

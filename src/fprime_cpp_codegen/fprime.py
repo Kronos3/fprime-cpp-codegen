@@ -1,11 +1,10 @@
 """F Prime idioms, kept separate from the general-purpose layers.
 
-Nothing here is needed to generate C++; it is the handful of conventions that show
-up in every F Prime autocoded file, collected so a generator does not have to
-retype them.  It is all still just strings and lines -- this module does not know
-about the FPP model any more than the rest of the package does.
+The conventions that show up in every F Prime autocoded file, collected so a
+generator does not have to retype them.  All strings and lines; no knowledge of the
+FPP model.
 
-Import it explicitly.  The core API stays framework-neutral.
+Import it explicitly; the core API stays framework-neutral.
 """
 
 from __future__ import annotations
@@ -55,8 +54,8 @@ STANDARD_USER_HPP_HEADERS = [
     )
 ]
 
-#: System headers an autocoded F Prime header normally needs.  Empty today; kept
-#: so a generator can splice it in unconditionally.
+#: System headers an autocoded F Prime header normally needs.  Empty, but kept so a
+#: generator can splice it in unconditionally.
 STANDARD_SYSTEM_HPP_HEADERS: list[str] = []
 
 #: Project headers an autocoded F Prime source file normally needs.
@@ -69,9 +68,9 @@ STANDARD_SYSTEM_CPP_HEADERS: list[str] = []
 def write_assert(condition: str, *args: str) -> list[Line]:
     """Render an ``FW_ASSERT``.
 
-    Extra arguments become the assert's reported values, which is what makes a
-    flight-side assertion diagnosable after the fact.  Non-string values must
-    already be spelled as C++ expressions, casts included.
+    Extra arguments become the assert's reported values, making a flight-side
+    assertion diagnosable after the fact.  Each must already be spelled as a C++
+    expression, casts included.
     """
     joined = ", ".join([condition, *args])
     return lines(f"FW_ASSERT({joined});")
@@ -85,8 +84,8 @@ def buffer_name(name: str) -> str:
 def external_string_decl(name: str, size: str) -> list[Line]:
     """Declare an ``Fw::ExternalString`` over a stack buffer of ``size`` characters.
 
-    F Prime avoids dynamic memory, so a string-typed local is a fixed char array
-    plus a view onto it rather than an owning string object.
+    F Prime avoids dynamic memory, so a string-typed local is a fixed char array plus
+    a view onto it, not an owning string object.
     """
     buf = buffer_name(name)
     return lines(
@@ -126,9 +125,8 @@ def guard_members_for_unit_test(
 def write_ostream_operator(name: str, body: Sequence[Line]) -> list[ClassMember]:
     """Declare and define a friend ``operator<<`` for ``name``, unit-test only.
 
-    Returns the friend declaration for the header and the definition for the
-    source file, both inside a ``BUILD_UT`` guard, ready to splice into a class's
-    member list.
+    Returns the header declaration and the source-file definition, both inside a
+    ``BUILD_UT`` guard, ready to splice into a class's member list.
     """
     declaration = Lines(
         lines(

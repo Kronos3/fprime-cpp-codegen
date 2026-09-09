@@ -1,14 +1,12 @@
 """Line- and member-level helpers for common C++ shapes.
 
-Everything here is plain functions over ``list[Line]`` or over lists of document
-members.  This is the layer to reach for when you are porting a generator that
-already thinks in lines, or when you want a fragment you can store in a variable
-and reuse.  :mod:`fprime_cpp_codegen.builder` sits on top of these.
+Plain functions over ``list[Line]`` and over lists of document members, for callers
+already thinking in lines or wanting a fragment to store and reuse.
+:mod:`fprime_cpp_codegen.builder` sits on top of these.
 
-A note on emptiness: like their upstream counterparts, the ``wrap_in_*`` helpers
-return nothing at all when handed an empty body, so a conditional block with no
-content disappears rather than emitting ``if (x) {\\n}``.  Pass
-``keep_empty=True`` when you actually want the empty braces.
+The ``wrap_in_*`` helpers return nothing when handed an empty body, so a conditional
+block with no content disappears instead of emitting ``if (x) {\\n}``.  Pass
+``keep_empty=True`` for the empty braces.
 """
 
 from __future__ import annotations
@@ -243,8 +241,8 @@ def wrap_in_if_else(
 ) -> list[Line]:
     """Wrap two bodies in an ``if``/``else`` pair.
 
-    Either arm vanishing takes its keyword with it, so an empty ``else`` leaves a
-    lone ``if`` rather than a dangling ``else {}``.
+    Either arm vanishing takes its keyword with it, so an empty ``else`` leaves a lone
+    ``if`` and no dangling ``else {}``.
     """
     return [
         *wrap_in_if(condition, if_body, keep_empty=keep_empty),
@@ -288,11 +286,7 @@ def wrap_in_for_loop_staggered(
     *,
     keep_empty: bool = False,
 ) -> list[Line]:
-    """Wrap ``body`` in a ``for`` header split across lines.
-
-    Worth using when the three clauses are long enough that one line would be
-    unreadable.
-    """
+    """Wrap ``body`` in a ``for`` header split across lines."""
     return wrap_in_scope(
         f"""|for (
             |  {init};
@@ -315,9 +309,8 @@ def wrap_in_if_directive(
     """Bracket ``body`` with a preprocessor ``directive`` and ``#endif``.
 
     ``directive`` is written verbatim and must include its ``#``, e.g.
-    ``"#if FW_ENABLE_TEXT_LOGGING"`` or ``"#ifdef BUILD_UT"``.  The body is *not*
-    indented: directives are column-zero constructs and indenting inside them only
-    makes the guarded code look misplaced.
+    ``"#if FW_ENABLE_TEXT_LOGGING"`` or ``"#ifdef BUILD_UT"``.  The body is not
+    indented, since directives are column-zero constructs.
     """
     if not body and not keep_empty:
         return []
@@ -336,10 +329,9 @@ def write_function_call(
 ) -> list[Line]:
     """Render a call statement.
 
-    With only ``args`` the call stays on one line.  Supplying ``variable_args``
-    -- the trailing arguments whose number varies from one call site to the next,
-    such as the fields of an event -- explodes the call one argument per line, so
-    a long generated argument list stays readable.
+    With only ``args`` the call stays on one line.  ``variable_args`` -- trailing
+    arguments whose number varies per call site, such as the fields of an event --
+    explodes the call one argument per line.
     """
     if not variable_args:
         return lines(f"{name}({', '.join(args)});")
@@ -356,10 +348,9 @@ def write_sum(
 ) -> list[Line]:
     """Render a sum of ``terms``, one per line, with the operator trailing.
 
-    An empty list renders as ``empty``, which keeps the caller from having to
-    special-case a zero-term total.  ``prefix`` is written before the first term
-    with the rest hanging beneath it, so ``prefix="return "`` gives a readable
-    multi-line return of a long sum.
+    An empty list renders as ``empty``, so a zero-term total needs no special case.
+    ``prefix`` is written before the first term with the rest hanging beneath it, as in
+    ``prefix="return "``.
     """
     if not terms:
         body = lines(f"{empty}{terminator}")

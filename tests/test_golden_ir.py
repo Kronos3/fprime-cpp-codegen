@@ -1,14 +1,8 @@
-"""Fidelity test: the document IR must reproduce upstream FPP's output exactly.
+"""The document IR against ``fpp``'s ``CppWriter`` reference output.
 
-The three golden files in ``tests/goldens`` are byte-for-byte copies of what the
-native (Scala) ``fpp`` compiler's ``CppWriter`` test emits.  Building the same
-document out of this package's IR and rendering it must produce the same bytes,
-which is what lets a generator move from ``fpp`` to here without churning its
-reference output.
-
-This test constructs the document by hand through the low-level IR.  Its sibling
-``test_golden_builder.py`` builds the same document through the builder API, so
-between them they pin both layers to the same target.
+The goldens in ``tests/goldens`` are copies of what the native ``fpp`` compiler emits.
+This test builds the same document by hand through the low-level IR;
+``test_golden_builder.py`` builds it through the builder API.
 """
 
 from __future__ import annotations

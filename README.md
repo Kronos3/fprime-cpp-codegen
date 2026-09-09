@@ -60,6 +60,18 @@ doc.write("build-artifacts")
 one and definitions in the other. `render_hpp()` / `render_cpp()` return the text
 instead, and `files()` returns every file as a name-to-text mapping.
 
+Generated files can optionally be passed through `clang-format`, which needs no
+compilation database or include paths — it is purely lexical, so standalone text is
+fine. Note that it discards the F Prime autocoder's own layout.
+
+```python
+from fprime_cpp_codegen import ClangFormat
+
+doc.write("build-artifacts", formatter=ClangFormat())   # or style="LLVM"
+```
+
+Any `Callable[[str, str], str]` taking `(text, file_name)` works as a formatter.
+
 `with` is optional throughout — a builder attaches to its parent as soon as you
 create it, so you can keep filling it in afterwards. It is worth using on access
 sections and preprocessor guards, which delete themselves when nothing lands

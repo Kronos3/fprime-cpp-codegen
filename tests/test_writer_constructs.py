@@ -213,7 +213,7 @@ class TestHeaderOnlyDefinitions:
         assert "return m_v;" in hpp
         assert "m_v()" in hpp
         cpp = render_cpp(doc)
-        # Nothing at all: every member had to be defined in the header.
+        # Every member was defined in the header.
         assert "Box" not in cpp
 
     def test_pure_virtual_with_body_in_a_templated_class_is_rejected(self) -> None:
@@ -256,7 +256,6 @@ class TestClasses:
         )
         cpp = render_cpp(doc)
         assert "Outer::Inner ::" in cpp
-        # The constructor and destructor names stay unqualified.
         assert "Inner()" in cpp
         assert "~Inner()" in cpp
 
@@ -294,7 +293,6 @@ class TestFileSelection:
         other = render_cpp(doc, "Other")
         assert "a();" in default and "b();" not in default
         assert "b();" in other and "a();" not in other
-        # The header declares both regardless.
         hpp = render_hpp(doc)
         assert "void here();" in hpp and "void there();" in hpp
 

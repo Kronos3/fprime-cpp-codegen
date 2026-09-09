@@ -9,25 +9,19 @@ are context managers that indent everything written inside them::
         body.line("total += m_data[i];")
     body.line("return total;")
 
-A ``Body`` is a plain value, so a helper function can build one and return it, and
-a caller can splice it in with :meth:`Body.extend`.  That matters: most generated
-C++ comes out of mapping over a model, and fragments need to be things you can
-put in a variable.
+A ``Body`` is a value: build one anywhere, return it from a helper, and splice it
+in with :meth:`Body.extend`.
 
-This class deals in *structure* -- scopes, nesting, control flow -- and leaves
-individual statements to :meth:`Body.line`.  There is deliberately no
-``assign()`` or ``ret()``: ``b.line("x = y;")`` is shorter than ``b.assign("x",
-"y")`` and shows you the C++ you are going to get, with nothing to remember about
-which helper supplies the semicolon.  Where a statement needs real formatting --
-a call broken one argument per line, a sum with a hanging indent --
-:mod:`fprime_cpp_codegen.utils` has a function returning lines, and
-:meth:`Body.raw` takes it::
+This class covers structure -- scopes, nesting, control flow.  Individual
+statements go through :meth:`Body.line`.  Statements needing multi-line layout, such
+as a call broken one argument per line, come from
+:mod:`fprime_cpp_codegen.utils` through :meth:`Body.raw`::
 
     b.raw(utils.write_function_call("log_FOO", ["id"], fields))
 
-Scopes emit even when their body turns out empty.  A vanishing ``if`` would
-silently re-point the ``else`` that follows it, which is a bug that reads as
-correct.  Pass ``omit_if_empty=True`` where you would rather the scope disappear.
+Scopes emit even when their body turns out empty, since a vanishing ``if`` would
+re-point the ``else`` that follows it.  Pass ``omit_if_empty=True`` to let the scope
+disappear.
 """
 
 from __future__ import annotations
@@ -50,9 +44,9 @@ from .lines import render as _render
 
 __all__ = ["Body", "Code", "Switch", "stmts"]
 
-#: Anything usable as a run of C++ statements.  ``None`` contributes nothing, which
-#: is what lets ``b.add(frag if condition else None)`` need no branch at the call
-#: site; a ``str`` is margin-stripped and taken verbatim, with no punctuation added.
+#: Anything usable as a run of C++ statements.  ``None`` contributes nothing, so
+#: ``b.add(frag if condition else None)`` needs no branch.  A ``str`` is
+#: margin-stripped and taken verbatim, with no punctuation added.
 Code: TypeAlias = Union[None, str, "Line", "Body", Sequence["Code"]]
 
 
@@ -75,23 +69,17 @@ def stmts(*code: Code) -> list[Line]:
     return out
 
 
-#: Statements after which control does not fall through.  ``goto`` is included for
-#: completeness even though F Prime's coding standard forbids it.
+#: Statements after which control does not fall through.
 _TERMINATING_KEYWORDS = ("return", "throw", "goto")
 
 
 def _terminates(ll: Sequence[Line]) -> bool:
     """Whether ``ll`` ends in a statement that unconditionally transfers control.
 
-    Read off the emitted text rather than tracked as state, so it works the same
-    whether a statement arrived through :meth:`Body.line`, :meth:`Body.raw`, or a
-    helper from :mod:`fprime_cpp_codegen.utils`.
-
-    Deliberately conservative.  A miss costs an unreachable ``break;``, which is
-    untidy but harmless; wrongly claiming termination would drop a ``break`` and
-    silently turn a switch arm into a fallthrough, so the test only matches shapes
-    that cannot be anything else.  ``return`` and ``throw`` are keywords, so a
-    following space or semicolon is unambiguous.
+    Conservative: a miss costs an unreachable ``break;``, while a false positive
+    would drop a ``break`` and turn a switch arm into a fallthrough.  Only shapes
+    that cannot be anything else match -- ``return`` and ``throw`` are keywords, so
+    a following space or semicolon is unambiguous.
     """
     if not ll:
         return False
@@ -128,10 +116,9 @@ class Body:
     def terminated(self) -> bool:
         """Whether the last statement written unconditionally transfers control.
 
-        A switch arm reads this to skip a ``break;`` that would be unreachable.  A
-        ``return`` nested inside an ``if`` does not count, and does not need to: the
-        last line at this level is then the ``if``'s closing brace, so the structure
-        distinguishes the two cases on its own.
+        A switch arm reads this to skip an unreachable ``break;``.  A ``return``
+        nested inside an ``if`` does not count: the last line at this level is then
+        the ``if``'s closing brace.
         """
         return _terminates(self._current.lines)
 
@@ -163,7 +150,7 @@ class Body:
         return _render(self.build())
 
     def __enter__(self) -> Body:
-        """Support ``with fn.body as b:`` purely as a way to shorten the name."""
+        """Support ``with fn.body as b:`` as a way to shorten the name."""
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -197,8 +184,8 @@ class Body:
     ) -> Iterator[Body]:
         """Open a nested scope, indenting whatever is written inside it.
 
-        If the block raises, the scope is discarded rather than half-emitted, so
-        the body is left as it was before the ``with``.
+        If the block raises, the scope is discarded and the body is left as it was
+        before the ``with``.
         """
         frame = _Frame(kind=kind)
         self._frames.append(frame)
@@ -328,8 +315,7 @@ class Body:
     ) -> AbstractContextManager[Body]:
         """``for (init; condition; step) { ... }``.
 
-        ``staggered=True`` splits the three clauses across lines, which is worth it
-        when they are long enough that one line would be unreadable.
+        ``staggered=True`` splits the three clauses across lines.
         """
         opening = (
             f"""|for (
@@ -367,11 +353,8 @@ class Body:
         """Bracket the block with a preprocessor ``directive`` and ``#endif``.
 
         ``directive`` is written verbatim and must include its ``#``.  The guarded
-        code is not indented relative to the guard: the directives sit at column
-        zero, and indenting between them only makes the code look misplaced.
-
-        ``spaced=False`` drops the blank lines around the directives, for a short
-        guard in the middle of a run of statements.
+        code is not indented relative to the guard, since the directives sit at
+        column zero.  ``spaced=False`` drops the blank lines around them.
         """
         gap = "\n" if spaced else ""
         return self._scope(
@@ -423,10 +406,8 @@ class Switch:
         """One or more ``case`` labels sharing a body.
 
         A ``break;`` is appended unless ``fallthrough=True`` or the body already
-        ends in a statement that transfers control.  Braces are on by default
-        because a bare label cannot declare a local, and a declaration in one arm
-        would otherwise leak into the next; ``braces=False`` gives the more compact
-        form used by existing F Prime autocode.
+        ends in a statement that transfers control.  Braces let an arm declare a
+        local, which a bare label cannot; ``braces=False`` emits the bare label.
         """
         self._check_open()
         if not labels:
@@ -456,7 +437,6 @@ class Switch:
             raise
         body._frames.pop()
         inner = list(frame.lines)
-        # A break after a return is dead code the compiler will warn about.
         if not fallthrough and not _terminates(frame.lines):
             inner.append(_line("break;"))
         closing = _lines("}") if braces else []

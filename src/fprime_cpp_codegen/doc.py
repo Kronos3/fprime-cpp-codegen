@@ -1,15 +1,13 @@
 """The C++ document IR: one ``.hpp`` file plus one or more ``.cpp`` files.
 
-This is the layer the writers consume.  You can build it by hand -- it is a plain
-tree of frozen dataclasses -- but :mod:`fprime_cpp_codegen.builder` is the
-comfortable way in.
+The layer the writers consume: a tree of frozen dataclasses.
+:mod:`fprime_cpp_codegen.builder` assembles it for you.
 
-A single :class:`CppDoc` describes a header and *any number* of source files.
-Every definition that has a body (function, constructor, destructor) and every
-block of raw lines can name the ``.cpp`` file it belongs to via ``cpp_file``;
-definitions that name nothing land in the document's default ``.cpp``.  The header
-always gets everything.  That is how a generator splits one large class across
-several translation units without duplicating its declaration.
+A single :class:`CppDoc` describes a header and any number of source files.  Every
+definition with a body, and every block of raw lines, can name the ``.cpp`` file it
+belongs to via ``cpp_file``; those naming nothing land in the document's default
+``.cpp``.  The header always gets everything, so one class can be split across
+translation units without duplicating its declaration.
 """
 
 from __future__ import annotations
@@ -58,12 +56,11 @@ class Output(Enum):
 
 
 class SVQualifier(Enum):
-    """A function's static/virtual specifier.
+    """A function's static/virtual specifier, mutually exclusive by construction.
 
-    These are mutually exclusive by construction, which is the point: it is not
-    possible to ask for ``static override``.  ``OVERRIDE`` and ``FINAL`` render as
-    trailing specifiers; ``STATIC``, ``VIRTUAL`` and ``PURE_VIRTUAL`` render as
-    leading ones.  ``PURE_VIRTUAL`` also terminates the declaration with ``= 0``.
+    ``OVERRIDE`` and ``FINAL`` render as trailing specifiers; ``STATIC``, ``VIRTUAL``
+    and ``PURE_VIRTUAL`` as leading ones.  ``PURE_VIRTUAL`` also terminates the
+    declaration with ``= 0``.
     """
 
     NONE = "none"
@@ -78,10 +75,9 @@ class SVQualifier(Enum):
 class Type:
     """A C++ type.
 
-    The spelling in the source file may need to differ from the spelling in the
-    header -- typically because the header sits inside the namespace that
-    qualifies the name and the source file does not.  ``cpp_type`` supplies that
-    alternative spelling; when it is absent both files use ``hpp_type``.
+    The source file may need a different spelling from the header, typically because
+    the header sits inside the namespace qualifying the name.  ``cpp_type`` supplies
+    it; when absent, both files use ``hpp_type``.
     """
 
     hpp_type: str
@@ -105,9 +101,9 @@ VOID = Type("void")
 def as_type(t: Type | str | tuple[str, str]) -> Type:
     """Coerce a type specification to a :class:`Type`.
 
-    A single string is used in both files.  A ``(header, source)`` pair supplies
-    the two spellings, which is what a nested type needs: ``Status`` inside the
-    class, ``MyClass::Status`` in the source file where the return type precedes
+    A single string is used in both files.  A ``(header, source)`` pair supplies the
+    two spellings a nested type needs: ``Status`` inside the class,
+    ``MyClass::Status`` in the source file where the return type precedes
     ``MyClass::``.
     """
     if isinstance(t, Type):
@@ -135,9 +131,8 @@ class Param:
 class Lines:
     """A block of raw, already-rendered C++ lines.
 
-    This is the escape hatch, and it is used heavily: access tags, banner
-    comments, ``#include`` directives, member variable declarations, enums and
-    structs are all just lines.  ``output`` decides which files see them.
+    Access tags, banner comments, ``#include`` directives, enums and structs are all
+    lines.  ``output`` decides which files see them.
     """
 
     content: list[Line] = field(default_factory=list)
@@ -149,15 +144,15 @@ class Lines:
 
 @dataclass(frozen=True, kw_only=True)
 class Definition:
-    """Fields shared by everything that has a body: where it goes, and whether.
+    """Fields shared by everything that has a body.
 
-    These are keyword-only so that subclasses can still take their own defining
-    field -- a function's name, say -- as the first positional argument.
+    Keyword-only, so subclasses can take their own defining field as the first
+    positional argument.
 
     ``deleted`` and ``defaulted`` replace the body with ``= delete`` or
     ``= default``; ``inline_body`` and ``template`` move the definition into the
-    header, since a template's definition has to be visible at every use.  In all
-    four cases the source file gets nothing.
+    header, since a template's definition must be visible at every use.  In all four
+    cases the source file gets nothing.
     """
 
     body: list[Line] = field(default_factory=list)
@@ -169,7 +164,6 @@ class Definition:
     deleted: bool = False
     defaulted: bool = False
     inline_body: bool = False
-    """Define in the header rather than the source file."""
 
     template: str | None = None
     """A template parameter list without the keyword, e.g. ``"typename T"``.
@@ -177,7 +171,6 @@ class Definition:
 
     @property
     def defined_in_header(self) -> bool:
-        """Whether this definition belongs in the header rather than a source file."""
         return self.inline_body or self.template is not None
 
     @property
@@ -193,8 +186,7 @@ class Function(Definition):
     name: str
     params: list[Param] = field(default_factory=list)
     ret_type: Type = VOID
-    """A return type of ``Type("")`` emits no return type at all, which is how
-    constructors of nested helper types and conversion operators are written."""
+    """``Type("")`` emits no return type, as a conversion operator needs."""
 
     sv: SVQualifier = SVQualifier.NONE
     const: bool = False
@@ -203,12 +195,8 @@ class Function(Definition):
 
     @property
     def defined_in_header(self) -> bool:
-        """Whether this definition belongs in the header rather than a source file.
-
-        ``constexpr`` and ``inline`` force it there: both require the definition to
-        be visible in every translation unit that uses the function, so putting it
-        in a single ``.cpp`` would produce link errors.
-        """
+        """``constexpr`` and ``inline`` force the definition into the header: both
+        require it visible in every translation unit that uses the function."""
         return super().defined_in_header or self.constexpr or self.inline
 
 
@@ -218,15 +206,14 @@ class Constructor(Definition):
 
     params: list[Param] = field(default_factory=list)
     initializers: list[str] = field(default_factory=list)
-    """Member-initializer-list entries, e.g. ``"m_size(size)"``.  Rendered wherever
-    the definition goes, which is the source file unless it is inlined."""
+    """Member-initializer-list entries, e.g. ``"m_size(size)"``, rendered wherever the
+    definition goes."""
 
     explicit: bool = False
     constexpr: bool = False
 
     @property
     def defined_in_header(self) -> bool:
-        """Whether this definition belongs in the header rather than a source file."""
         return super().defined_in_header or self.constexpr
 
 
@@ -245,36 +232,34 @@ class Class:
     name: str
     superclass_decls: str | None = None
     """Everything after the colon, verbatim, e.g. ``"public Fw::Serializable"``.
-    Multiple bases go in one string separated by commas."""
+    Multiple bases go in one comma-separated string."""
 
     members: list[ClassMember] = field(default_factory=list)
     comment: str | None = None
     final: bool = False
     template: str | None = None
     """A template parameter list without the keyword, e.g. ``"typename T"``.  A
-    templated class defines all of its members in the header, so its source file
-    output is empty."""
+    templated class defines all its members in the header, so its source file output
+    is empty."""
 
     struct: bool = False
-    """Emit ``struct`` instead of ``class``, making members public by default."""
+    """Emit ``struct``, making members public by default."""
 
 
 @dataclass(frozen=True)
 class Variable:
     """A variable: a class data member, or a constant or global at namespace scope.
 
-    Where the initialiser goes depends on what kind of variable this is, because
-    C++ is particular about it:
+    Where the initialiser goes depends on the kind of variable:
 
     * A non-static data member takes its initialiser in the class body.
-    * A static data member is only *declared* in the class; the definition, with
-      the initialiser, goes in a source file.  A ``constexpr`` static is the
-      exception -- it is initialised in the class, and needs no out-of-line
-      definition unless something takes its address, which is what
-      ``out_of_line_definition`` is for.
-    * At namespace scope, ``extern`` splits the declaration from the definition the
-      same way.  Without it the variable is defined where it is declared, which is
-      what you want for a ``constexpr`` or ``const`` constant in a header.
+    * A static data member is only declared in the class; the definition, with the
+      initialiser, goes in a source file.  A ``constexpr`` static is initialised in
+      the class and needs no out-of-line definition unless something takes its
+      address -- see ``out_of_line_definition``.
+    * At namespace scope, ``extern`` splits declaration from definition the same way.
+      Without it the variable is defined where it is declared, as a ``constexpr`` or
+      ``const`` constant in a header should be.
     """
 
     name: str
@@ -290,7 +275,7 @@ class Variable:
     mutable: bool = False
     extern: bool = False
     out_of_line_definition: bool = False
-    """Emit a source-file definition for a ``constexpr`` static member as well."""
+    """Also emit a source-file definition for a ``constexpr`` static member."""
 
     cpp_file: str | None = None
 
@@ -318,12 +303,7 @@ ClassMember = Union[Class, Lines, Function, Constructor, Destructor, Variable]
 
 @runtime_checkable
 class FileBanner(Protocol):
-    """Supplies the ``\\title``/``\\author``/``\\brief`` lines atop each file.
-
-    Implement this to take ownership of the banner -- for instance to write the
-    invoking user as the author of a template file whose ownership passes to them
-    once copied, which is what the F Prime tools do.
-    """
+    """Supplies the ``\\title``/``\\author``/``\\brief`` lines atop each file."""
 
     def title(self, file_name: str) -> str:
         """The ``\\title`` text for ``file_name``."""
@@ -334,11 +314,8 @@ class FileBanner(Protocol):
         ...
 
     def description(self, file_name: str, generic_description: str) -> str:
-        """The ``\\brief`` text for ``file_name``.
-
-        ``generic_description`` is the writer's own phrasing, e.g.
-        ``"hpp file for my component"``.
-        """
+        """The ``\\brief`` text.  ``generic_description`` is the writer's own phrasing,
+        e.g. ``"hpp file for my component"``."""
         ...
 
 

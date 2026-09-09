@@ -1,12 +1,11 @@
 """The immutable line model and the line algebra built on top of it.
 
-A generated C++ file is, ultimately, a ``list[Line]``.  A :class:`Line` carries its
-own indentation separately from its text, which is what makes the alignment tricks
-in this module possible: a continuation line can be indented to line up with an
-arbitrary column of the line before it, and a blank line renders as a genuinely
-empty line rather than a run of trailing spaces.
+A generated C++ file is a ``list[Line]``.  A :class:`Line` carries its indentation
+separately from its text, so a continuation line can be aligned to an arbitrary
+column of the line before it and a blank line renders empty rather than as trailing
+whitespace.
 
-Every function here is pure.  Nothing in this module knows anything about C++.
+Every function here is pure, and none of them know anything about C++.
 """
 
 from __future__ import annotations
@@ -53,10 +52,9 @@ INDENT_INCREMENT = 2
 class IndentMode(Enum):
     """How :func:`join_lists` treats the tail of the second list of lines.
 
-    ``INDENT`` re-indents the tail so it lines up under the join column, which is
-    how doxygen post-comments get aligned beneath their parameter.  ``NO_INDENT``
-    leaves the tail where it is, which is what you want when merely gluing a
-    suffix such as ``;`` onto a multi-line signature.
+    ``INDENT`` re-indents the tail to line up under the join column, aligning a
+    doxygen post-comment beneath its parameter.  ``NO_INDENT`` leaves the tail where
+    it is, for gluing a suffix such as ``;`` onto a multi-line signature.
     """
 
     INDENT = "indent"
@@ -67,9 +65,9 @@ class IndentMode(Enum):
 class Line:
     """A single line of output: some text plus the column it starts at.
 
-    ``indent`` is a raw space count and is deliberately allowed to go negative.
-    Access tags rely on that: they are emitted at the class-body indent and then
-    shifted out by two, and a negative indent simply renders as no indent at all.
+    ``indent`` is a raw space count and may go negative, which renders as no indent.
+    Access tags rely on that, being emitted at the class-body indent then shifted out
+    by two.
     """
 
     string: str = ""
@@ -97,9 +95,8 @@ class Line:
     def size(self) -> int:
         """The rendered width of the line, indentation included, newline excluded.
 
-        Computed from the raw indent, so a negative indent shrinks the size just
-        as it does in the original Scala.  This is the column that
-        :func:`join_lists` aligns against.
+        The column :func:`join_lists` aligns against.  Computed from the raw indent,
+        so a negative indent shrinks it.
         """
         return self.indent + len(self.string)
 
@@ -117,15 +114,10 @@ def blank() -> Line:
 def strip_margin(s: str, margin: str = "|") -> str:
     """Strip a leading margin from every line of ``s``.
 
-    For each line, leading whitespace and control characters are skipped; if the
-    next character is ``margin`` it and everything before it are dropped.  A line
-    with no margin marker is left completely untouched, including its leading
-    whitespace.  This mirrors Scala's ``String.stripMargin``, which is what the
-    upstream F Prime generators are written against.
-
-    Note the deliberate asymmetry: ``"x = a | b;"`` has no leading margin marker,
-    so it survives intact.  Splitting on the first ``|`` anywhere in the line
-    would corrupt it.
+    For each line, leading whitespace and control characters are skipped; if the next
+    character is ``margin``, it and everything before it are dropped.  A line with no
+    margin marker is left untouched, including its leading whitespace -- so
+    ``"x = a | b;"`` survives intact.
     """
     out: list[str] = []
     for part in s.split("\n"):
@@ -141,11 +133,10 @@ def strip_margin(s: str, margin: str = "|") -> str:
 
 
 def _split_lines(s: str) -> list[str]:
-    """Split ``s`` on newlines the way Java's ``String.split`` does.
+    """Split ``s`` on newlines, discarding trailing empty fields.
 
-    Trailing empty fields are discarded, so a string ending in a newline does not
-    yield a spurious blank line, but the empty string still yields one empty
-    field.  Interior blank lines are preserved.
+    A string ending in a newline yields no spurious blank line, but the empty string
+    still yields one empty field.  Interior blank lines are preserved.
     """
     if s == "":
         return [""]
@@ -158,9 +149,8 @@ def _split_lines(s: str) -> list[str]:
 def lines(s: str) -> list[Line]:
     """Convert a (possibly margin-stripped, possibly multi-line) string to lines.
 
-    ``lines("\\n|#ifndef X\\n|#define X")`` yields a leading blank line followed by
-    the two directives, which is the idiom the C++ writers use to separate
-    sections.
+    ``lines("\\n|#ifndef X\\n|#define X")`` yields a leading blank line followed by the
+    two directives.
     """
     return [Line(part) for part in _split_lines(strip_margin(s))]
 
@@ -188,11 +178,10 @@ def join_lists(
 ) -> list[Line]:
     """Glue two blocks of lines together at their seam.
 
-    The last line of ``lines1`` and the first line of ``lines2`` are merged into
-    one line joined by ``sep``.  Under :attr:`IndentMode.INDENT` the remaining
-    lines of ``lines2`` are additionally indented in by the width of that seam, so
-    they hang under the join column.  Either block being empty short-circuits to
-    the other.
+    The last line of ``lines1`` and the first of ``lines2`` merge into one line joined
+    by ``sep``.  Under :attr:`IndentMode.INDENT` the remaining lines of ``lines2`` are
+    indented by the width of that seam, so they hang under the join column.  Either
+    block being empty short-circuits to the other.
     """
     if not lines2:
         return list(lines1)
@@ -267,8 +256,8 @@ def flatten_with_prefix_line(prefix: Line, lll: Iterable[Sequence[Line]]) -> lis
 def blank_separated(f: Callable[[_T], list[Line]], items: Sequence[_T]) -> list[Line]:
     """Map ``f`` over ``items`` and separate the results with single blank lines.
 
-    Unlike :func:`intersperse_blank_lines` this does not skip empty results, so an
-    item that renders to nothing still contributes a separator.
+    Empty results still contribute a separator; :func:`intersperse_blank_lines` drops
+    them.
     """
     out: list[Line] = []
     for i, item in enumerate(items):
@@ -290,10 +279,8 @@ def intersperse(items: Sequence[_T], element: _T) -> list[_T]:
 
 
 def intersperse_blank_lines(lll: Iterable[Sequence[Line]]) -> list[Line]:
-    """Flatten a list of blocks with one blank line between them.
-
-    Empty blocks are dropped first, so they do not produce doubled blank lines.
-    """
+    """Flatten a list of blocks with one blank line between them, dropping empty
+    blocks so they do not produce doubled blanks."""
     blocks = [list(ll) for ll in lll if ll]
     out: list[Line] = []
     for i, block in enumerate(blocks):

@@ -44,8 +44,7 @@ def _compiler() -> str | None:
     return None
 
 
-#: Enough of the F Prime basic types to compile generated code that includes them,
-#: so an example can look like real F Prime without dragging in the framework.
+#: Enough of the F Prime basic types to compile generated code that includes them.
 FPRIME_STUB_HEADERS = {
     "Fw/FPrimeBasicTypes.hpp": (
         "#ifndef FW_FPRIME_BASIC_TYPES_HPP\n"
@@ -70,10 +69,9 @@ def assert_compiles(
 ) -> None:
     """Compile the given C++ sources, skipping the test if no compiler is present.
 
-    ``stubs`` supplies extra headers to place alongside them, for generated code
-    that includes headers the test environment does not have.  ``defines`` are
-    passed as ``-D`` flags, which is how the code inside a ``#if`` guard gets
-    compiled at all -- a plain build never sees it.
+    ``stubs`` supplies extra headers to place alongside them, for generated code that
+    includes headers the test environment does not have.  ``defines`` are passed as
+    ``-D`` flags, without which code inside a ``#if`` guard is never compiled.
     """
     cxx = _compiler()
     if cxx is None:

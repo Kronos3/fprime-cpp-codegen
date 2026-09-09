@@ -6,12 +6,11 @@ A source file sees only the definitions assigned to it, so calling
 :func:`cpp_lines` once per ``.cpp`` base name splits a document across as many
 translation units as you like.
 
-Deciding *where* a definition goes is the one piece of real logic here.  Most go
-into a source file, but templates, ``inline`` and ``constexpr`` functions have to
-be visible in every translation unit that uses them, and a member of a templated
-class inherits that requirement.  Those are defined in the header instead, and the
-source file skips them.  ``= delete`` and ``= default`` members have no definition
-to place at all.
+Deciding where a definition goes is the logic here.  Most go into a source file, but
+templates, ``inline`` and ``constexpr`` functions must be visible in every
+translation unit that uses them, as must every member of a templated class; those
+are defined in the header and skipped by the source file.  ``= delete`` and
+``= default`` members have no definition to place.
 """
 
 from __future__ import annotations
@@ -144,8 +143,7 @@ def _check_variable(v: Variable, *, in_class: bool) -> None:
 def _check_params(params: Sequence[Param]) -> None:
     """Reject a default argument followed by one without a default.
 
-    C++ requires defaults to be trailing, and a generator assembling a parameter
-    list from a model can easily order them wrongly.
+    C++ requires default arguments to be trailing.
     """
     defaulted: str | None = None
     for p in params:
@@ -162,9 +160,8 @@ def _check_params(params: Sequence[Param]) -> None:
 def needs_definition(d: Definition, *, pure_virtual: bool = False) -> bool:
     """Whether ``d`` has a definition that must be emitted somewhere.
 
-    A deleted or defaulted member has none.  A pure virtual has none either,
-    unless it was given a body -- which C++ permits, as a default implementation
-    a derived class can call explicitly.
+    A deleted or defaulted member has none.  A pure virtual has none unless given a
+    body, which C++ permits as a default implementation a derived class can call.
     """
     if not d.has_definition:
         return False
@@ -175,9 +172,9 @@ def needs_definition(d: Definition, *, pure_virtual: bool = False) -> bool:
 class Context:
     """Where the writer currently is in the document.
 
-    ``class_names`` runs outermost-first and each entry may itself be qualified,
-    which is how a nested class ends up spelled ``Outer::Inner`` in the source
-    file while its constructor is still spelled ``Inner``.
+    ``class_names`` runs outermost-first and each entry may itself be qualified, so a
+    nested class is spelled ``Outer::Inner`` in the source file while its constructor
+    is spelled ``Inner``.
     """
 
     hpp_file: HppFile
@@ -188,8 +185,8 @@ class Context:
     class_names: tuple[str, ...] = ()
 
     inline_definitions: bool = False
-    """Set once inside a templated class, whose members must all be defined in the
-    header.  Inherited by nested classes."""
+    """Set inside a templated class, whose members must all be defined in the header.
+    Inherited by nested classes."""
 
     @property
     def cpp_file_name(self) -> str:
@@ -276,10 +273,10 @@ class DocWriter(ABC):
     def param_string(self, p: Param) -> str:
         """Render a parameter as ``"<type> <name>"``.
 
-        Both writers use the header spelling of the type.  In an out-of-class
-        definition the parameter list is looked up in the class's scope, so names
-        that resolve unqualified in the header resolve unqualified here too; only
-        the return type, which precedes ``Class::``, needs the source spelling.
+        Both writers use the header spelling.  An out-of-class definition's parameter
+        list is looked up in the class's scope, so names resolving unqualified in the
+        header resolve here too.  Only the return type, which precedes ``Class::``,
+        needs the source spelling.
         """
         return f"{p.type.hpp} {p.name}"
 
@@ -337,8 +334,8 @@ class HppWriter(DocWriter):
     def write_params(self, prefix: str, params: list[Param]) -> list[Line]:
         """Render a parameter list, breaking one-per-line when there is more than one.
 
-        A lone uncommented parameter stays on the same line as the name; anything
-        else is exploded so the post-comments have somewhere to go.
+        A lone uncommented parameter stays on the same line as the name; anything else
+        is exploded so the post-comments have somewhere to go.
         """
         _check_params(params)
         if not params:
@@ -511,9 +508,8 @@ class HppWriter(DocWriter):
     def visit_variable(self, ctx: Context, v: Variable) -> list[Line]:
         """Render a variable declaration.
 
-        The initialiser is included only when this declaration is also the
-        definition; when the definition goes to a source file, the initialiser goes
-        with it.
+        The initialiser is included only when this declaration is also the definition;
+        otherwise it goes to the source file with the definition.
         """
         in_class = bool(ctx.class_names)
         _check_variable(v, in_class=in_class)
@@ -540,9 +536,8 @@ class HppWriter(DocWriter):
     def visit_namespace(self, ctx: Context, ns: Namespace) -> list[Line]:
         """Render a namespace and everything in it.
 
-        The header emits the namespace even when it turns out to be empty, since a
-        declaration-free namespace in a header is still meaningful: it may exist
-        only to be reopened elsewhere.
+        The header emits the namespace even when empty, since a declaration-free
+        namespace may exist only to be reopened elsewhere.
         """
         return [
             blank(),
@@ -607,8 +602,8 @@ class CppWriter(DocWriter):
     ) -> list[Line]:
         """Render only if ``cpp_file`` names the source file being written.
 
-        ``None`` means the document's default source file.  This is the whole
-        mechanism behind splitting one document across several ``.cpp`` files.
+        ``None`` means the document's default source file.  This is the mechanism
+        behind splitting one document across several ``.cpp`` files.
         """
         selected = (
             f"{cpp_file}.cpp" if cpp_file is not None else ctx.default_cpp_file_name
@@ -626,8 +621,8 @@ class CppWriter(DocWriter):
     def visit_class(self, ctx: Context, c: Class) -> list[Line]:
         """Descend into a class.  The class itself contributes no source text.
 
-        A templated class contributes nothing at all: every one of its members had
-        to be defined in the header.
+        A templated class contributes nothing: all its members are defined in the
+        header.
         """
         if c.template is not None:
             return []
@@ -675,8 +670,8 @@ class CppWriter(DocWriter):
     def visit_function(self, ctx: Context, fn: Function) -> list[Line]:
         """Render a function definition.
 
-        A pure virtual with a body lands here as a default implementation; one
-        without a body has nothing to define.
+        A pure virtual with a body lands here as a default implementation; one without
+        a body has nothing to define.
         """
         pure = fn.sv is SVQualifier.PURE_VIRTUAL
         if not self.defines_here(fn, pure_virtual=pure):
@@ -714,8 +709,8 @@ class CppWriter(DocWriter):
         def render_lines() -> list[Line]:
             qualifier = f"{ctx.enclosing_class_qualified}::" if in_class else ""
             if v.constexpr:
-                # The initialiser stayed with the in-class declaration; this
-                # definition exists only to give the constant an address.
+                # The initialiser stays with the in-class declaration; this definition
+                # exists only to give the constant an address.
                 decl = f"constexpr {v.type.cpp} {qualifier}{v.declarator}"
             else:
                 lead = "const " if v.const else ""
@@ -735,9 +730,9 @@ class CppWriter(DocWriter):
     def visit_namespace(self, ctx: Context, ns: Namespace) -> list[Line]:
         """Render a namespace, or nothing at all if it contributes no definitions.
 
-        Namespaces routinely come out empty here: a document split across several
-        source files will have members belonging to a different ``.cpp`` than the
-        one being written, and an empty ``namespace X {}`` is just noise.
+        Namespaces routinely come out empty here, since a document split across
+        several source files has members belonging to a different ``.cpp`` than the
+        one being written.
         """
         body = self.visit_members(ctx, ns.members)
         if not body:

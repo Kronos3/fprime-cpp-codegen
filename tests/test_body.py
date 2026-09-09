@@ -22,8 +22,6 @@ class TestSimpleStatements:
         assert text(b) == "a();\nb();\nc();\nd();\n"
 
     def test_line_formatting_helpers_come_from_utils(self) -> None:
-        # Body handles structure; formatting a call or a sum belongs to utils, and
-        # arrives through raw().
         from fprime_cpp_codegen import utils
 
         b = Body()
@@ -305,7 +303,7 @@ class TestCodeCoercion:
         assert [str(l) for l in result] == ["a();", "b();", "x();", "c();"]
 
     def test_none_contributes_nothing(self) -> None:
-        # This is what lets a caller write `b.add(frag if cond else None)`.
+        # Callers write `b.add(frag if cond else None)`.
         from fprime_cpp_codegen.body import stmts
 
         assert stmts(None) == []
@@ -350,8 +348,7 @@ class TestTermination:
         "statement", ["f();", "return_value = 1;", "throwaway = 2;", "// return 0;"]
     )
     def test_lookalikes_are_not_mistaken_for_terminators(self, statement: str) -> None:
-        # Getting this wrong the other way would drop a break and silently turn an
-        # arm into a fallthrough, so the test only matches unambiguous shapes.
+        # A false positive would drop a break and turn an arm into a fallthrough.
         b = Body()
         b.line(statement)
         assert not b.terminated
@@ -368,8 +365,7 @@ class TestTermination:
         assert not b.terminated
 
     def test_a_nested_return_does_not_terminate_the_outer_level(self) -> None:
-        # The last line at this level is the if's closing brace, so the structure
-        # distinguishes the two cases without any tracking.
+        # The last line at this level is the if's closing brace.
         b = Body()
         with b.if_("x"):
             b.line("return 0;")

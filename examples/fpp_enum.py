@@ -1,9 +1,7 @@
 """Port of FPP's enum autocoder: generate the C++ for an F Prime enum type.
 
-This mirrors what ``fpp-to-cpp`` produces for an FPP ``enum`` definition -- the
-same shape as its ``EnumCppWriter``, but driven by a small Python data class
-instead of an FPP model.  It is the largest thing in this repository that exercises
-the API, and a good place to look for how a real generator is put together.
+Produces what ``fpp-to-cpp`` does for an FPP ``enum`` definition, driven by a small
+Python data class in place of an FPP model.
 
 Run it to see the generated pair::
 
@@ -13,18 +11,11 @@ or write them out::
 
     python examples/fpp_enum.py build-artifacts
 
-What it demonstrates:
-
-* a class deriving from ``Fw::Serializable``, with seven access sections
-* ``using`` aliases, a raw unscoped ``enum``, and an anonymous ``enum`` of constants
-* constructors defined inline in the header
-* a conversion operator, which has no return type at all
-* operators defined out of line in the source file
-* ``#ifdef BUILD_UT`` and ``#if FW_SERIALIZABLE_TO_STRING`` guards, both around
-  whole members and around a few statements inside a body
-* a friend ``operator<<`` declared in the header and defined in the source
-* member variables with in-class initialisers and multi-line comments
-* a ``switch`` in the compact brace-less style F Prime autocode uses
+The generated class derives from ``Fw::Serializable`` and carries ``using`` aliases,
+a raw unscoped ``enum``, an anonymous ``enum`` of constants, constructors defined
+inline in the header, a conversion operator, out-of-line operators, ``BUILD_UT`` and
+``FW_SERIALIZABLE_TO_STRING`` guards, a friend ``operator<<``, and a brace-less
+``switch``.
 """
 
 from __future__ import annotations
@@ -53,11 +44,7 @@ class Constant:
 
 @dataclass(frozen=True)
 class EnumModel:
-    """The bits of an FPP enum definition this generator needs.
-
-    Standing in for the FPP model, so the generator below has the shape it would
-    have in a real tool without depending on one.
-    """
+    """The bits of an FPP enum definition this generator needs."""
 
     name: str
     constants: list[Constant]
@@ -194,8 +181,6 @@ def operators(cls: ClassBuilder, model: EnumModel) -> None:
             assign_obj.body.line("this->m_serializeValue = obj.m_serializeValue;")
         assign_obj.body.line("return *this;")
 
-        # Upstream's wording is not quite uniform across these two, so carry it
-        # verbatim rather than deriving it.
         assignments = (
             (
                 "SerialType",
@@ -214,8 +199,7 @@ def operators(cls: ClassBuilder, model: EnumModel) -> None:
                 fn.body.line("this->m_serializeValue = 0;")
             fn.body.line("return *this;")
 
-        # A conversion operator names its type instead of returning one, so there
-        # is no return type to write.
+        # A conversion operator names its type instead of returning one.
         cls.function(
             "operator enum T",
             ret=Type(""),

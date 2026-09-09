@@ -2,21 +2,21 @@
 
 The package is layered, and you can enter at whichever level suits the job:
 
-* :mod:`~fprime_cpp_codegen.builder` -- the builder API, and the recommended
-  starting point.  Start with :class:`CppDocBuilder`.
+* :mod:`~fprime_cpp_codegen.builder` -- the builder API.  Start with
+  :class:`CppDocBuilder`.
 * :mod:`~fprime_cpp_codegen.body` -- :class:`Body`, for function bodies.
-* :mod:`~fprime_cpp_codegen.doc` -- the document IR, if you would rather build the
-  tree directly.
-* :mod:`~fprime_cpp_codegen.writer` -- the visitors that render the IR to lines.
+* :mod:`~fprime_cpp_codegen.doc` -- the document IR, to build the tree directly.
+* :mod:`~fprime_cpp_codegen.writer` -- the visitors rendering the IR to lines.
 * :mod:`~fprime_cpp_codegen.utils`, :mod:`~fprime_cpp_codegen.comments` -- helpers
-  over ``list[Line]`` for callers already thinking in lines.
+  over ``list[Line]``.
 * :mod:`~fprime_cpp_codegen.lines` -- the line model everything is built on.
 * :mod:`~fprime_cpp_codegen.output` -- rendering to text and to disk.
+* :mod:`~fprime_cpp_codegen.formatting` -- optional post-processing through
+  ``clang-format``.
 * :mod:`~fprime_cpp_codegen.fprime` -- F Prime conventions.  Import it explicitly;
   nothing else in the package depends on it.
 
-Nothing here knows anything about the FPP model.  It is C++ text generation and
-that is all.
+Nothing here knows about the FPP model.
 
 A minimal example::
 
@@ -71,6 +71,7 @@ from .doc import (
     as_type,
 )
 from .errors import CppCodegenError, ScopeError, ValidationError
+from .formatting import ClangFormat, Formatter
 from .lines import INDENT_INCREMENT, IndentMode, Line, blank, line, lines, render
 from .output import WriteResult, collect_cpp_files, doc_files, write_doc
 from .utils import Radix
@@ -139,6 +140,8 @@ __all__ = [
     "render_cpp",
     "render_hpp",
     # Output
+    "ClangFormat",
+    "Formatter",
     "WriteResult",
     "collect_cpp_files",
     "doc_files",

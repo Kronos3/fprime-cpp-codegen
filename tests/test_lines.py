@@ -73,8 +73,7 @@ class TestStripMargin:
         assert strip_margin("   foo") == "   foo"
 
     def test_leaves_interior_pipe_alone(self) -> None:
-        # The naive "split on the first pipe" reading of stripMargin corrupts
-        # bitwise expressions.  This is the case that pins the correct behavior.
+        # Splitting on the first pipe anywhere would corrupt a bitwise expression.
         assert strip_margin("if (a | b) {") == "if (a | b) {"
         assert strip_margin("x = a|b;") == "x = a|b;"
 

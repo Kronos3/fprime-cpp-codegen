@@ -1,12 +1,7 @@
-"""The builder API must be able to produce the reference document too.
+"""The builder API against ``fpp``'s ``CppWriter`` reference output.
 
-``test_golden_ir.py`` pins the writers by hand-building the IR.  This one builds
-the same document through the builder, which pins the builder as well: if the two
-layers ever disagree about how something renders, one of these tests goes red.
-
-The goldens are copies of what the native ``fpp`` compiler emits, so matching them
-is not a requirement -- it is a check that this package's formatting has not
-drifted from the F Prime house style that generated code is read alongside.
+The same document as ``test_golden_ir.py``, built through the builder instead of the
+IR, so a disagreement between the two layers fails here.
 """
 
 from __future__ import annotations
@@ -105,7 +100,6 @@ def test_supplemental_cpp_matches_golden() -> None:
 
 
 def test_the_supplemental_file_is_discovered() -> None:
-    # Nothing had to tell the builder that "Other.cpp" exists.
     assert set(build().files()) == {"C.hpp", "C.cpp", "Other.cpp"}
 
 

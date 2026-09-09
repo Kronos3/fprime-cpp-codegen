@@ -1,9 +1,8 @@
 """Turning a document into files on disk.
 
-Generators run inside build systems, so writing is conservative by default: a file
-whose contents already match is left alone rather than rewritten, which keeps its
-mtime stable and stops a no-op regeneration from cascading a rebuild through
-everything downstream.  Pass ``skip_unchanged=False`` to always write.
+A file whose contents already match is left alone, keeping its mtime stable so a
+no-op regeneration does not cascade a rebuild downstream.  Pass
+``skip_unchanged=False`` to always write.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .doc import Class, ClassMember, CppDoc, Member, Namespace
+from .formatting import Formatter
 from .writer import render_cpp, render_hpp
 
 __all__ = ["WriteResult", "collect_cpp_files", "doc_files", "write_doc"]
@@ -37,10 +37,9 @@ class WriteResult:
 def collect_cpp_files(doc: CppDoc) -> list[str]:
     """Find every supplemental source file ``doc`` assigns definitions to.
 
-    Returns base names without extensions, in the order they first appear, and
-    never the document's own default file.  This is what lets rendering discover
-    its own outputs instead of relying on the caller to remember them -- forgetting
-    one would silently drop every definition assigned to it.
+    Returns base names without extensions, in the order they first appear, and never
+    the document's own default file.  Rendering uses this to discover its own
+    outputs; a file left unnamed would lose every definition assigned to it.
     """
     default_base = doc.cpp_file_name.rsplit(".", 1)[0]
     found: list[str] = []
@@ -57,13 +56,21 @@ def collect_cpp_files(doc: CppDoc) -> list[str]:
     return found
 
 
-def doc_files(doc: CppDoc, cpp_files: Sequence[str] | None = None) -> dict[str, str]:
+def doc_files(
+    doc: CppDoc,
+    cpp_files: Sequence[str] | None = None,
+    *,
+    formatter: Formatter | None = None,
+) -> dict[str, str]:
     """Render a document to a mapping of file name to text.
 
     Always produces the header and the document's default source file.
     ``cpp_files`` names additional source files by base name, without extension;
     each gets only the definitions assigned to it.  Left as ``None``, the
     supplemental files are discovered from the document itself.
+
+    ``formatter`` post-processes each file, receiving its text and its name; see
+    :mod:`fprime_cpp_codegen.formatting`.
     """
     if cpp_files is None:
         cpp_files = collect_cpp_files(doc)
@@ -73,6 +80,8 @@ def doc_files(doc: CppDoc, cpp_files: Sequence[str] | None = None) -> dict[str, 
     }
     for base in cpp_files:
         out[f"{base}.cpp"] = render_cpp(doc, base)
+    if formatter is not None:
+        out = {name: formatter(text, name) for name, text in out.items()}
     return out
 
 
@@ -81,19 +90,23 @@ def write_doc(
     directory: str | Path = ".",
     cpp_files: Sequence[str] | None = None,
     *,
+    formatter: Formatter | None = None,
     skip_unchanged: bool = True,
     encoding: str = "utf-8",
 ) -> WriteResult:
     """Write a document's header and source files into ``directory``.
 
     The directory is created if it does not exist.  See :func:`doc_files` for how
-    ``cpp_files`` selects supplemental source files.
+    ``cpp_files`` selects supplemental source files and what ``formatter`` does.
+
+    Formatting happens before the unchanged check, so a file already holding the
+    formatted text is still left alone.
     """
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     unchanged: list[Path] = []
-    for name, text in doc_files(doc, cpp_files).items():
+    for name, text in doc_files(doc, cpp_files, formatter=formatter).items():
         path = root / name
         if skip_unchanged and path.is_file() and path.read_text(encoding=encoding) == text:
             unchanged.append(path)

@@ -97,7 +97,6 @@ class TestBuilderInterop:
                     cls.function("describe", const=True, body="(void) 0;")
         hpp, cpp = d.render_hpp(), d.render_cpp()
         assert hpp.count("describe") == 1
-        # Exactly one definition, and it stays inside the guard.
         assert cpp.count("describe") == 1
         assert "#if FW_ENABLE_TEXT_LOGGING" in cpp
         assert cpp.index("#if FW_ENABLE_TEXT_LOGGING") < cpp.index("describe")

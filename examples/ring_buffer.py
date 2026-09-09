@@ -1,6 +1,6 @@
 """Generate a small C++ class: a fixed-capacity ring buffer.
 
-Run it to write ``Ring.hpp`` and ``Ring.cpp`` into a directory of your choosing::
+Run it to print the generated pair, or pass a directory to write them::
 
     python examples/ring_buffer.py build-artifacts
 """

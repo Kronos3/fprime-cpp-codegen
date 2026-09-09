@@ -19,21 +19,19 @@ Nesting in the generated C++ follows nesting in the Python::
 
     doc.write("build-artifacts")
 
-``with`` is optional almost everywhere.  A builder is attached to its parent the
-moment you create it, so its position in the output is already fixed and you can
-keep filling it in afterwards::
+``with`` is optional almost everywhere.  A builder attaches to its parent when you
+create it, fixing its position in the output, so you can keep filling it in
+afterwards::
 
     fn = cls.function("bump", ret="U32")
     fn.param("U32", "by", default="1")
     fn.body.line("return m_count + by;")
 
-Use ``with`` where you want the visual grouping, and on access sections and
-preprocessor guards, where it also makes an empty section disappear instead of
-leaving a stray ``public:`` or an empty ``#if``.
+On access sections and preprocessor guards, ``with`` additionally makes an empty
+section disappear instead of leaving a stray ``public:`` or an empty ``#if``.
 
-Builders are values.  A helper function can build a fragment and return it, and
-the caller splices it in with :meth:`ClassBuilder.member`, which is what makes
-generating from a data model pleasant::
+A helper can build a fragment and return it for the caller to splice in with
+:meth:`ClassBuilder.member`::
 
     def accessor(cls, name, type_name):
         fn = cls.function(f"get{name}", ret=type_name, const=True)
@@ -77,6 +75,7 @@ from .doc import (
     as_type,
 )
 from .errors import ValidationError
+from .formatting import Formatter
 from .lines import Line, blank
 from .lines import line as _line
 from .lines import lines as _lines
@@ -125,9 +124,8 @@ class _Builder(ABC, Generic[_T]):
     def build_members(self) -> list[Any]:
         """The IR members this builder contributes, in order.
 
-        Almost always just :meth:`build`.  Decoration that has to be repeated per
-        output file -- a banner, a preprocessor guard -- overrides this to
-        contribute several members at once.
+        Decoration repeated per output file -- a banner, a preprocessor guard --
+        overrides this to contribute several members at once.
         """
         return [self.build()]
 
@@ -152,7 +150,7 @@ def _as_params(params: Iterable[Param | tuple[str, ...] | Sequence[str]]) -> lis
     """Coerce a parameter spec list into :class:`Param` objects.
 
     A tuple is read as ``(type, name)`` optionally followed by ``comment`` and
-    ``default``, which keeps a generated parameter table readable at the call site.
+    ``default``.  An empty string in either position means absent.
     """
     out: list[Param] = []
     for p in params:
@@ -166,8 +164,6 @@ def _as_params(params: Iterable[Param | tuple[str, ...] | Sequence[str]]) -> lis
                 "(type, name[, comment[, default]])"
             )
         type_name, name, *rest = parts
-        # An empty string is how the tuple form says "skip this one" -- handy when
-        # you want a default argument but no comment.
         comment = rest[0] or None if len(rest) > 0 else None
         default = rest[1] or None if len(rest) > 1 else None
         out.append(Param(as_type(type_name), name, comment, default))
@@ -184,8 +180,7 @@ def _sv_qualifier(
 ) -> SVQualifier:
     """Collapse the mutually exclusive static/virtual flags into one qualifier."""
     if pure_virtual:
-        # "virtual and pure_virtual" is redundant rather than contradictory, so it
-        # is allowed; anything else alongside it is a mistake.
+        # virtual is redundant alongside pure_virtual, so it is permitted.
         conflicts = [n for n, v in (("static", static), ("override", override), ("final", final)) if v]
         if conflicts:
             raise ValidationError(
@@ -492,13 +487,11 @@ class EnumBuilder(_Builder[Lines]):
         self.cpp_file = cpp_file
         self.radix = radix
         self.trailing_comma = trailing_comma
-        """Whether the last enumerator carries a comma.  Legal either way; F Prime
-        writes one for a type's enumerators and omits it for a bare constant."""
+        """Whether the last enumerator carries a comma.  Legal either way."""
 
         self.comment_above = comment_above
-        """Put each enumerator's comment on its own ``//!`` line above it, rather
-        than as a ``//!<`` post-comment after it.  Worth turning on when the
-        comments are long enough that trailing them would run the lines out."""
+        """Put each enumerator's comment on a ``//!`` line above it, instead of a
+        ``//!<`` post-comment after it."""
 
         self.qualifier = qualifier
         self._constants: list[list[Line]] = []
@@ -507,10 +500,9 @@ class EnumBuilder(_Builder[Lines]):
     def type(self) -> Type:
         """This enum as a :class:`Type`, qualified for use in a source file.
 
-        A nested enum is spelled bare inside its class but needs the class name in
-        front of it in a source-file return type, which precedes ``Class::`` and so
-        is not yet in the class's scope.  Pass this to ``ret=`` and both spellings
-        come out right::
+        A nested enum is spelled bare inside its class, but a source-file return type
+        precedes ``Class::`` and so is not yet in the class's scope.  Pass this to
+        ``ret=`` for both spellings::
 
             status = cls.enum_class("Status", underlying="U8")
             cls.function("check", ret=status.type)
@@ -598,11 +590,8 @@ def _source_targets(members: Sequence[object], *, in_class: bool) -> list[str | 
     default source file, in order of first appearance.  An empty result means these
     members are header-only.
 
-    Anything that decorates a group of members -- a banner, a preprocessor guard --
-    has to know this.  A single decoration pinned to no file at all lands in the
-    default source file, which is wrong twice over when the members went somewhere
-    else: the decoration heads nothing where it appears, and is absent where it is
-    needed.
+    Anything decorating a group of members -- a banner, a preprocessor guard -- needs
+    this to land in the same files as the members themselves.
     """
     found: list[str | None] = []
 
@@ -648,12 +637,11 @@ def _per_file_lines(
 class _SectionBanner(_Builder[Lines]):
     """The banner comment heading an access section.
 
-    Where it goes is decided at build time, once the section's contents are known.
-    A header-only section -- nested types, member variables -- keeps its banner out
-    of the source files entirely, rather than leaving a heading with nothing under
-    it.  Otherwise the banner follows the members: normally into the default source
-    file, and into the supplemental files instead when that is where the section's
-    definitions actually went.
+    Where it goes is decided at build time, once the section's contents are known.  A
+    header-only section -- nested types, member variables -- keeps its banner out of
+    the source files.  Otherwise the banner follows the members: into the default
+    source file, or into the supplemental files when that is where the section's
+    definitions went.
     """
 
     def __init__(self, comment: str) -> None:
@@ -662,9 +650,8 @@ class _SectionBanner(_Builder[Lines]):
 
     def _targets(self) -> list[str | None]:
         targets = _source_targets(self.members, in_class=True)
-        # A banner is decoration, so one copy is enough: prefer the default source
-        # file whenever it has any of the section, and only relocate when it has
-        # none.  A guard cannot do this -- see _Guard.
+        # One copy suffices for decoration, so relocate only when the default source
+        # file holds none of the section.  A guard cannot do this; see _Guard.
         if None in targets:
             return [None]
         return targets
@@ -683,9 +670,8 @@ class _SectionBanner(_Builder[Lines]):
 class _Guard:
     """A preprocessor guard bracketing a run of members.
 
-    Unlike a banner, the guard is not decoration: code that escapes it gets
-    compiled unconditionally.  So it is repeated into *every* source file that
-    receives a guarded definition, not just one of them.
+    Repeated into every source file receiving a guarded definition: code escaping the
+    guard would be compiled unconditionally.
     """
 
     def __init__(self, directive: str, output: Output, *, in_class: bool) -> None:
@@ -741,15 +727,13 @@ class AccessSection:
     """An access-specifier section of a class.
 
     The ``public:`` label goes in immediately, so ``cls.public("Interface")`` works
-    on its own.  Used as a ``with`` block it also cleans up after itself: a section
-    that ends up with no members takes its label and banner back out, so
-    conditionally generated code does not leave a stray ``public:`` behind.
+    on its own.  As a ``with`` block, a section that ends up with no members takes
+    its label and banner back out again.
     """
 
     def __init__(self, scope: ClassBuilder, tag: str, comment: str | None) -> None:
         self._scope = scope
         self._count = 1
-        # The label belongs to the header alone.
         scope._add(Lines(write_access_tag(tag), Output.HPP))
         self._banner: _SectionBanner | None = None
         if comment is not None:
@@ -782,9 +766,8 @@ class _Scope(_Builder[_T], Generic[_T]):
         self._ctx = ctx if ctx is not None else _DocContext()
         self._pending: list[object] = []
         self._type_qualifier = type_qualifier
-        """How a type declared in this scope must be spelled from a source file.
-        Empty at namespace scope, since a source file is written inside its
-        namespace; the enclosing class chain otherwise."""
+        """How a type declared in this scope is spelled from a source file: the
+        enclosing class chain, or empty at namespace scope."""
 
     # -- internals ----------------------------------------------------
 
@@ -804,8 +787,8 @@ class _Scope(_Builder[_T], Generic[_T]):
     def member(self, *members: object) -> None:
         """Splice in ready-made IR members or builders, in order.
 
-        This is how output from :mod:`fprime_cpp_codegen.utils` and
-        :mod:`fprime_cpp_codegen.fprime` gets in::
+        Takes output from :mod:`fprime_cpp_codegen.utils` and
+        :mod:`fprime_cpp_codegen.fprime`::
 
             cls.member(*fprime.write_ostream_operator("MyType", body))
         """
@@ -841,9 +824,8 @@ class _Scope(_Builder[_T], Generic[_T]):
     ) -> None:
         """Append a ruled banner comment, heading the members that follow.
 
-        Unlike the banner an access section carries, this one is unconditional: it
-        goes into both files unless told otherwise, because nothing here knows which
-        members it is meant to be heading.
+        Unconditional: it goes into both files unless ``output`` says otherwise.  An
+        access section's banner instead follows its members.
         """
         self.raw(write_banner_comment(text), output=output, cpp_file=cpp_file)
 
@@ -879,8 +861,8 @@ class _Scope(_Builder[_T], Generic[_T]):
     ) -> EnumBuilder:
         """Add an unscoped ``enum``, named or anonymous.
 
-        An anonymous enum is how a header carries an integer constant without also
-        needing a definition in a source file.
+        An anonymous enum carries an integer constant in the header without needing a
+        definition in a source file.
         """
         return self._add(
             EnumBuilder(
@@ -960,13 +942,13 @@ class _Scope(_Builder[_T], Generic[_T]):
     ) -> Iterator[Any]:
         """Bracket the members added inside with a preprocessor guard.
 
-        ``directive`` is written verbatim and must include its ``#``.  A guard that
-        ends up with no members inside it is not emitted at all.  If the block
-        raises, any members it did add are discarded.
+        ``directive`` is written verbatim and must include its ``#``.  A guard with no
+        members inside it is not emitted, and a block that raises discards whatever
+        it added.
 
-        The guard is repeated into every source file that receives one of the
-        guarded definitions, so a definition sent to a supplemental ``.cpp`` stays
-        guarded there rather than escaping into an unconditional compile.
+        The guard is repeated into every source file receiving one of the guarded
+        definitions, so a definition sent to a supplemental ``.cpp`` stays guarded
+        there.
         """
         start = len(self._pending)
         try:
@@ -986,8 +968,7 @@ class _Scope(_Builder[_T], Generic[_T]):
         """Send definitions created inside this block to ``<base>.cpp``.
 
         ``base`` is a file name without extension; ``None`` restores the document
-        default.  Only definitions created *while the block is open* are affected,
-        which is exactly the lexical reading.
+        default.  Only definitions created while the block is open are affected.
         """
         self._ctx.cpp_files.append(base)
         try:
@@ -1020,8 +1001,8 @@ class ClassBuilder(_Scope[Class]):
         self.name = name
         self.qualified_name = qualified
         """How this class is spelled from a source file: the enclosing class chain
-        plus its own name.  Namespaces are not included, because a source file is
-        written inside its namespace already."""
+        plus its own name.  Namespaces are excluded, since a source file is written
+        inside its namespace."""
 
         self.extends = _extends(extends)
         self.final = final
@@ -1037,8 +1018,8 @@ class ClassBuilder(_Scope[Class]):
     def nested(self, name: str) -> Type:
         """A type declared inside this class, qualified for use in a source file.
 
-        Use it for anything this class declares that the builder does not know
-        about -- a typedef spelled with :meth:`using`, say::
+        For anything this class declares that the builder does not know about, such as
+        an alias from :meth:`using`::
 
             cls.using("Id", "U32")
             cls.function("id", ret=cls.nested("Id"), const=True)
@@ -1158,11 +1139,7 @@ class _MemberScope(_Scope[_T], Generic[_T]):
         return self.class_(name, **kwargs)
 
     def function(self, name: str, **kwargs: Any) -> FunctionBuilder:
-        """Add a free function.
-
-        The class-only qualifiers are rejected here rather than silently producing
-        code that will not compile.
-        """
+        """Add a free function.  The class-only qualifiers are rejected here."""
         for bad in ("const", "virtual", "pure_virtual", "override", "final"):
             if kwargs.get(bad):
                 raise ValidationError(
@@ -1221,6 +1198,7 @@ class CppDocBuilder(_MemberScope[CppDoc]):
         namespaces: Sequence[str] = (),
         tool_name: str | None = None,
         file_banner: FileBanner | None = None,
+        formatter: Formatter | None = None,
         hpp_extension: str = "hpp",
         cpp_extension: str = "cpp",
     ) -> None:
@@ -1229,6 +1207,10 @@ class CppDocBuilder(_MemberScope[CppDoc]):
         ``include_guard`` defaults to one derived from ``file_base`` and
         ``namespaces``; ``namespaces`` is used for nothing else, so pass it when you
         want ``Fw_Cfg_MyClass_HPP`` without spelling the macro out.
+
+        ``formatter`` post-processes every file this document renders; see
+        :mod:`fprime_cpp_codegen.formatting`.  Any render or write call can override
+        it, but cannot switch it off.
         """
         super().__init__(_DocContext())
         if not file_base:
@@ -1238,6 +1220,9 @@ class CppDocBuilder(_MemberScope[CppDoc]):
         self.hpp_extension = hpp_extension
         self.cpp_extension = cpp_extension
         self.tool_name = tool_name
+        self.formatter = formatter
+        """Applied to every file this document renders, unless a call overrides it."""
+
         self.file_banner = file_banner
         """Overrides the ``\\title``/``\\author``/``\\brief`` block atop each file.
         Distinct from :meth:`banner`, which emits a section comment."""
@@ -1270,35 +1255,55 @@ class CppDocBuilder(_MemberScope[CppDoc]):
 
     # -- output -------------------------------------------------------
 
-    def render_hpp(self) -> str:
+    def _formatter(self, override: Formatter | None) -> Formatter | None:
+        return override if override is not None else self.formatter
+
+    def render_hpp(self, *, formatter: Formatter | None = None) -> str:
         """Render the header as text."""
-        return render_hpp(self.build())
+        text = render_hpp(self.build())
+        chosen = self._formatter(formatter)
+        return chosen(text, self.hpp_name) if chosen else text
 
-    def render_cpp(self, cpp_file: str | None = None) -> str:
+    def render_cpp(
+        self, cpp_file: str | None = None, *, formatter: Formatter | None = None
+    ) -> str:
         """Render one source file as text.  ``None`` selects the default one."""
-        return render_cpp(self.build(), cpp_file)
+        text = render_cpp(self.build(), cpp_file)
+        chosen = self._formatter(formatter)
+        if not chosen:
+            return text
+        name = f"{cpp_file}.{self.cpp_extension}" if cpp_file else self.cpp_name
+        return chosen(text, name)
 
-    def files(self, cpp_files: Sequence[str] | None = None) -> dict[str, str]:
+    def files(
+        self,
+        cpp_files: Sequence[str] | None = None,
+        *,
+        formatter: Formatter | None = None,
+    ) -> dict[str, str]:
         """Render every file this document owns, as a name-to-text mapping."""
-        return doc_files(self.build(), cpp_files)
+        return doc_files(
+            self.build(), cpp_files, formatter=self._formatter(formatter)
+        )
 
     def write(
         self,
         directory: str | Path = ".",
         cpp_files: Sequence[str] | None = None,
         *,
+        formatter: Formatter | None = None,
         skip_unchanged: bool = True,
         encoding: str = "utf-8",
     ) -> WriteResult:
         """Write every file this document owns into ``directory``.
 
-        Supplemental source files are discovered automatically, so nothing is
-        silently dropped for want of naming it here.
+        Supplemental source files are discovered automatically.
         """
         return write_doc(
             self.build(),
             directory,
             cpp_files,
+            formatter=self._formatter(formatter),
             skip_unchanged=skip_unchanged,
             encoding=encoding,
         )

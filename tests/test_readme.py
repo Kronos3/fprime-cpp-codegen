@@ -44,7 +44,6 @@ def test_quick_start_produces_the_two_files(quick_start: Any) -> None:
 def test_quick_start_splits_declarations_from_definitions(quick_start: Any) -> None:
     hpp, cpp = quick_start.render_hpp(), quick_start.render_cpp()
     assert "Ring(" in hpp and "bool push(" in hpp
-    # The inline accessor is defined in the header; push is defined in the source.
     assert "return m_size;" in hpp and "return m_size;" not in cpp
     assert "return true;" in cpp and "return true;" not in hpp
 

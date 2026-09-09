@@ -1,13 +1,8 @@
-"""The FPP autocoder ports must keep reproducing what ``fpp-to-cpp`` emits.
+"""The example autocoder ports against ``fpp-to-cpp``'s own reference output.
 
-``tests/goldens/fpp/`` holds unmodified reference output from the native ``fpp``
-compiler's own test suite.  These tests build the same documents through this
-package and compare, which is the real test of whether the API can do the job an
-autocoder needs -- and pins the ports against drift.
-
-The generated C++ is also compiled, against the stub headers in
-:mod:`tests.conftest`, so the ports are known to produce code a compiler accepts
-and not merely text that looks right.
+``tests/goldens/fpp/`` holds unmodified reference files from the native ``fpp``
+compiler's test suite.  The generated C++ is also compiled against the stub headers in
+:mod:`tests.conftest`.
 """
 
 from __future__ import annotations
@@ -50,8 +45,7 @@ def assert_identical_but_for_indent(
 ) -> None:
     """Assert the only differences are indentation, on exactly the lines given.
 
-    Used where this package's output is deliberately better than upstream's: if
-    anything else drifts, or these lines stop differing, the test fails.
+    Fails if anything else differs, or if these lines stop differing.
     """
     expected = reference(ref_name).splitlines()
     actual = generated.splitlines()
@@ -70,10 +64,9 @@ class TestEnumPort:
     def test_source_is_identical_to_fpp_output(self) -> None:
         assert_identical(load("fpp_enum").build().render_cpp(), "EEnumAc.ref.cpp")
 
-    def test_header_differs_only_where_upstream_is_inconsistent(self) -> None:
-        # Upstream indents the BUILD_UT block inside the inline copy constructor to
-        # four spaces while the statements around it sit at six.  This package keeps
-        # the body consistent, so those two lines differ.
+    def test_header_differs_only_in_two_indents(self) -> None:
+        # The reference indents the BUILD_UT block inside the inline copy constructor
+        # to four spaces while the statements around it sit at six.
         assert_identical_but_for_indent(
             load("fpp_enum").build().render_hpp(), "EEnumAc.ref.hpp", [88, 89]
         )
@@ -85,8 +78,7 @@ class TestEnumPort:
         )
 
     def test_generated_files_compile_with_the_guards_enabled(self) -> None:
-        # Without these defines the BUILD_UT and FW_SERIALIZABLE_TO_STRING blocks
-        # are never compiled at all, which is most of the generated code.
+        # Without these defines the guarded blocks are never compiled at all.
         assert_compiles(
             load("fpp_enum").build().files(),
             stubs={**FPRIME_STUB_HEADERS, **FW_TYPE_STUBS},
@@ -167,8 +159,6 @@ FW_BASIC_TYPE_STUBS = {
 }
 
 #: Just enough of the F Prime serialization surface to compile a generated enum.
-#: Deliberately minimal -- the point is to prove the generated code compiles, not to
-#: reimplement the framework.
 FW_TYPE_STUBS = {
     "Fw/Types/Assert.hpp": (
         "#ifndef FW_ASSERT_HPP\n"
