@@ -1,3 +1,5 @@
+# Moved to https://github.com/fprime-community/fprime-cpp-codegen
+
 # fprime-cpp-codegen
 
 A Python package for generating C++ code for F Prime.
